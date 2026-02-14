@@ -1,0 +1,20 @@
+# Data
+data/
+
+# Go
+/duffel
+/server
+*.exe
+
+# Node
+node_modules/
+pnpm-lock.yaml
+
+# OS
+.DS_Store
+*.swp
+*~
+
+# IDE
+.idea/
+.vscode/

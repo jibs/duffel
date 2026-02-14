@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>duffel</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="app">
+    <nav id="sidebar">
+      <div class="sidebar-header">
+        <h1>duffel</h1>
+        <div class="sidebar-actions">
+          <button id="btn-new-file" title="New file">+</button>
+          <button id="btn-new-folder" title="New folder">📁</button>
+        </div>
+      </div>
+      <div id="search-bar">
+        <input type="text" id="search-input" placeholder="Search notes...">
+      </div>
+      <div id="file-tree"></div>
+    </nav>
+    <main id="content">
+      <div id="breadcrumb"></div>
+      <div id="view-file" class="view hidden">
+        <div id="file-toolbar">
+          <button id="btn-edit">Edit</button>
+          <button id="btn-archive">Archive</button>
+          <button id="btn-delete">Delete</button>
+        </div>
+        <div id="file-rendered"></div>
+      </div>
+      <div id="view-editor" class="view hidden">
+        <div id="editor-toolbar">
+          <button id="btn-save">Save</button>
+          <button id="btn-cancel">Cancel</button>
+        </div>
+        <div id="editor-panels">
+          <textarea id="editor-source"></textarea>
+          <div id="editor-preview"></div>
+        </div>
+      </div>
+      <div id="view-journal" class="view hidden">
+        <div id="journal-entries"></div>
+        <div id="journal-append">
+          <textarea id="journal-input" placeholder="Add a new entry..."></textarea>
+          <button id="btn-journal-append">Append</button>
+        </div>
+      </div>
+      <div id="view-dir" class="view hidden">
+        <div id="dir-toolbar">
+          <button id="btn-agent-snippet" title="Copy agent snippet for this project">Copy Agent Snippet</button>
+        </div>
+        <div id="dir-listing"></div>
+      </div>
+      <div id="view-search" class="view hidden">
+        <div id="search-results"></div>
+      </div>
+      <div id="view-empty" class="view">
+        <p class="empty-state">Select a note or folder from the sidebar.</p>
+      </div>
+    </main>
+  </div>
+  <script src="/lib/marked.min.js"></script>
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>
