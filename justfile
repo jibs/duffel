@@ -94,6 +94,11 @@ ci: fmt-check lint typecheck build-js test
 deploy:
     @echo "Deploy not configured yet"
 
+# Setup: install deps and rebuild native addons (run on new devices)
+setup:
+    pnpm install
+    cd node_modules/.pnpm/better-sqlite3@*/node_modules/better-sqlite3 && npm run build-release
+
 # Clean build artifacts
 clean:
     rm -f duffel

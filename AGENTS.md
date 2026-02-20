@@ -57,6 +57,7 @@ Journal rules:
 - Run `just ci` before committing
 
 ## Commands
+- `just setup` — install deps and rebuild native addons (run on new devices)
 - `just dev` — run dev server
 - `just ci` — full CI pipeline (fmt-check, lint, typecheck, test)
 - `just test` — run all tests

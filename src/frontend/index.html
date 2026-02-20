@@ -55,7 +55,44 @@
         <div id="dir-listing"></div>
       </div>
       <div id="view-search" class="view hidden">
+        <div id="search-toolbar">
+          <div id="search-query-row">
+            <input type="text" id="search-query-input" placeholder="Search...">
+            <button id="btn-search" class="primary">Search</button>
+          </div>
+          <div id="search-filters">
+            <label>Sort
+              <select id="search-sort">
+                <option value="score">Relevance</option>
+                <option value="date">Date</option>
+              </select>
+            </label>
+            <label>Prefix
+              <input type="text" id="search-prefix" placeholder="e.g. project/">
+            </label>
+            <label>After
+              <input type="date" id="search-after">
+            </label>
+            <label>Before
+              <input type="date" id="search-before">
+            </label>
+            <label>Per page
+              <select id="search-limit">
+                <option value="10">10</option>
+                <option value="20" selected>20</option>
+                <option value="50">50</option>
+              </select>
+            </label>
+          </div>
+        </div>
         <div id="search-results"></div>
+        <div id="search-pagination">
+          <span id="search-showing"></span>
+          <div id="search-page-buttons">
+            <button id="btn-search-prev" disabled>Prev</button>
+            <button id="btn-search-next" disabled>Next</button>
+          </div>
+        </div>
       </div>
       <div id="view-empty" class="view">
         <p class="empty-state">Select a note or folder from the sidebar.</p>

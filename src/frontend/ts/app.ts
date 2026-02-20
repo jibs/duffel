@@ -265,20 +265,25 @@ function showSnippetModal(snippet: string): void {
   const overlay = document.createElement("div");
   overlay.className = "modal-overlay";
   overlay.innerHTML = `
-    <div class="modal">
-      <h3>Agent Snippet</h3>
-      <textarea readonly></textarea>
+    <div class="modal snippet-modal">
+      <div class="snippet-header">
+        <h3>Agent Snippet</h3>
+        <button class="snippet-close-btn" title="Close">&times;</button>
+      </div>
+      <div class="snippet-code-wrap">
+        <pre class="snippet-code"></pre>
+      </div>
       <div class="modal-buttons">
-        <button class="snippet-copy-btn">Copy</button>
-        <button class="snippet-close-btn">Close</button>
+        <button class="snippet-copy-btn primary">Copy</button>
       </div>
     </div>`;
-  (overlay.querySelector("textarea") as HTMLTextAreaElement).value = snippet;
+  (overlay.querySelector(".snippet-code") as HTMLPreElement).textContent = snippet;
   const copyBtn = overlay.querySelector(".snippet-copy-btn")!;
   copyBtn.addEventListener("click", async () => {
     await copyToClipboard(snippet);
     copyBtn.textContent = "Copied!";
-    setTimeout(() => { copyBtn.textContent = "Copy"; }, 2000);
+    copyBtn.classList.add("copied");
+    setTimeout(() => { copyBtn.textContent = "Copy"; copyBtn.classList.remove("copied"); }, 2000);
   });
   overlay.querySelector(".snippet-close-btn")!.addEventListener("click", () => overlay.remove());
   overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });

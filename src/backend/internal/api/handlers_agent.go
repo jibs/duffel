@@ -5,7 +5,7 @@ import (
 	"net/http"
 )
 
-const agentProtocolVersion = 2
+const agentProtocolVersion = 3
 
 func handleAgentVersion() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -39,7 +39,7 @@ func handleAgentSnippet() http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 		if path != "" {
-			fmt.Fprintf(w, agentSnippetProject, path, baseURL, baseURL, path, path, path, path, path, path, path, path, baseURL) //nolint:errcheck
+			fmt.Fprintf(w, agentSnippetProject, path, baseURL, baseURL, path, path, path, path, baseURL) //nolint:errcheck
 		} else {
 			fmt.Fprintf(w, agentSnippet, baseURL, baseURL, baseURL) //nolint:errcheck
 		}
@@ -82,6 +82,7 @@ Commands:
   unarchive <path>                 Unarchive file
   journal create <path> [content]  Create journal
   journal append <path> <content>  Append to journal
+  find <query> [options]            Search-first helper (defaults: -n 8 --brief)
   search <query> [options]          Search notes
     -n <limit>                     Max results (default 20, max 100)
     -o <offset>                    Skip N results (pagination)
@@ -89,6 +90,9 @@ Commands:
     -p <prefix>                    Filter by path prefix
     --after <date>                 Only docs modified after ISO date
     --before <date>                Only docs modified before ISO date
+    --fields <csv>                 Projection: path,title,snippet,score,modified_at
+    --brief                        Equivalent to --fields path,title,modified_at,score
+    --paths                        Equivalent to --fields path
 USAGE
   exit 1
 }
@@ -256,7 +260,7 @@ cmd_journal_append() {
 }
 
 cmd_search() {
-  local limit="" offset="" sort="" prefix="" after="" before=""
+  local limit="" offset="" sort="" prefix="" after="" before="" fields=""
   local query_parts=()
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -266,6 +270,9 @@ cmd_search() {
       -p)     shift; prefix="$1" ;;
       --after)  shift; after="$1" ;;
       --before) shift; before="$1" ;;
+      --fields) shift; fields="$1" ;;
+      --brief) fields="path,title,modified_at,score" ;;
+      --paths) fields="path" ;;
       *)      query_parts+=("$1") ;;
     esac
     shift
@@ -282,6 +289,7 @@ cmd_search() {
   [ -n "$prefix" ] && curl_args+=(--data-urlencode "prefix=${prefix}")
   [ -n "$after" ]  && curl_args+=(--data-urlencode "after=${after}")
   [ -n "$before" ] && curl_args+=(--data-urlencode "before=${before}")
+  [ -n "$fields" ] && curl_args+=(--data-urlencode "fields=${fields}")
   local response
   response=$(curl "${curl_args[@]}" "${DUFFEL_URL}/api/search")
   if printf '%%s' "$response" | grep -q '"error"'; then
@@ -289,6 +297,10 @@ cmd_search() {
     return 1
   fi
   printf '%%s\n' "$response"
+}
+
+cmd_find() {
+  cmd_search -n 8 --brief "$@"
 }
 
 # Main dispatch
@@ -314,12 +326,14 @@ case "$1" in
       *) usage ;;
     esac
     ;;
+  find)     shift; [ $# -lt 1 ] && usage; cmd_find "$@" ;;
   search)   shift; [ $# -lt 1 ] && usage; cmd_search "$@" ;;
   *)        usage ;;
 esac
 `
 
-// agentSnippet is the markdown template. %s slots: (1) base URL for download, (2) base URL for description, (3) base URL for examples.
+// agentSnippet is the markdown template.
+// %s slots: (1) base URL description, (2) base URL download, (3) base URL env override.
 var agentSnippet = `# Duffel
 
 Duffel is a note-taking system accessible via API at %s.
@@ -332,80 +346,62 @@ Download the CLI script (one-time):
 curl -s %s/api/agent/script > ./duffel.sh && chmod +x ./duffel.sh
 ` + "```" + `
 
-## Commands
+## LLM Search-First Workflow
+
+1. Start with compact retrieval:
+   - ` + "`duffel find \"<topic terms>\" -p <prefix>`" + `
+2. If results are weak, widen with cheap path-only scans:
+   - ` + "`duffel search \"<term1 OR term2 OR term*>\" --paths -n 30 -o 0`" + `
+   - ` + "`duffel search \"<same query>\" --paths -n 30 -o 30`" + `
+3. Read only the strongest matches:
+   - ` + "`duffel read <path>`" + `
+4. Write/update notes only after synthesis.
+
+Token-saving defaults:
+- Prefer ` + "`find`" + ` over ` + "`ls`" + ` for discovery.
+- Start with ` + "`-n 5`" + ` to ` + "`-n 8`" + `, then paginate with ` + "`-o`" + `.
+- Use ` + "`--paths`" + ` or ` + "`--brief`" + ` before full result objects.
+- Keep searches scoped with ` + "`-p <prefix>`" + ` and date filters (` + "`--after`" + ` / ` + "`--before`" + `).
+
+## Command Quick Reference
 
 | Command | Description |
 |---------|-------------|
-| ` + "`duffel ls [path]`" + ` | List directory contents |
-| ` + "`duffel read <path>`" + ` | Read file content (raw markdown) |
-| ` + "`duffel write <path> [content\\|-]`" + ` | Create/update file (reads stdin if - or no content) |
-| ` + "`duffel rm <path>`" + ` | Delete file or empty directory |
-| ` + "`duffel mkdir <path>`" + ` | Create directory |
-| ` + "`duffel mv <source> <destination>`" + ` | Move/rename file or directory |
-| ` + "`duffel archive <path>`" + ` | Archive a file |
-| ` + "`duffel unarchive <path>`" + ` | Unarchive a file |
-| ` + "`duffel journal create <path> [content]`" + ` | Create a journal file |
-| ` + "`duffel journal append <path> <content>`" + ` | Append entry to journal |
-| ` + "`duffel search <query> [options]`" + ` | Search notes (options: -n limit, -o offset, -s score/date, -p prefix, --after date, --before date) |
+| ` + "`duffel find <query> [options]`" + ` | Search-first helper (` + "`-n 8 --brief`" + ` by default) |
+| ` + "`duffel search <query> [options]`" + ` | Full search (` + "`-n`" + `, ` + "`-o`" + `, ` + "`-s`" + `, ` + "`-p`" + `, ` + "`--after`" + `, ` + "`--before`" + `) |
+| ` + "`duffel search <query> --paths`" + ` | Return only ` + "`path`" + ` field |
+| ` + "`duffel search <query> --brief`" + ` | Return ` + "`path,title,modified_at,score`" + ` |
+| ` + "`duffel search <query> --fields path,title`" + ` | Custom field projection |
+| ` + "`duffel read <path>`" + ` | Read a note |
+| ` + "`duffel write <path> [content\\|-]`" + ` | Create/update note |
+| ` + "`duffel journal append <path> <content>`" + ` | Append a journal entry |
 
-## Search
-
-The search supports FTS5 query syntax passed through directly:
-
-- ` + "`duffel search \"exact phrase\"`" + ` — phrase search
-- ` + "`duffel search \"title:keyword\"`" + ` — search only in titles
-- ` + "`duffel search \"word1 OR word2\"`" + ` — boolean OR
-- ` + "`duffel search \"word1 NOT word2\"`" + ` — exclusion
-- ` + "`duffel search \"key*\"`" + ` — prefix wildcard
-- ` + "`duffel search pasta -n 5`" + ` — limit to 5 results
-- ` + "`duffel search pasta -s date`" + ` — sort by date (newest first)
-- ` + "`duffel search pasta -p projects/`" + ` — only in projects/ path
-- ` + "`duffel search pasta --after 2026-01-01`" + ` — modified after date
-
-Results include ` + "`path`" + `, ` + "`title`" + `, ` + "`snippet`" + `, ` + "`score`" + `, and ` + "`modified_at`" + `.
-
-## Example Workflow
+## Example
 
 ` + "```" + `bash
-# List all notes
-duffel ls
+# Compact retrieval pass
+duffel find "api auth session" -p projects/
 
-# Read a note
-duffel read projects/myproject.md
-
-# Create a new note
-duffel write meeting-notes.md "# Standup 2024-01-15\n- Discussed API changes"
-
-# Write from stdin
-echo "# Draft" | duffel write draft.md -
-
-# Create a directory
-duffel mkdir projects
-
-# Search for something
-duffel search "API design"
-
-# Search with options
-duffel search pasta -n 5 -s date --after 2026-01-01
-
-# Journal workflow
-duffel journal create log.md "Started project"
-duffel journal append log.md "Added authentication"
+# Path-only expansion, then read selected notes
+duffel search "api OR auth OR session*" --paths -n 30
+duffel read projects/auth/design.md
 ` + "```" + `
 
 ## Notes
 
 - All output is plain text, optimized for LLM consumption
+- Search accepts FTS5 query syntax (phrases, ` + "`OR`" + `, ` + "`NOT`" + `, prefix ` + "`*`" + `, field filters like ` + "`title:keyword`" + `)
 - The script requires ` + "`curl`" + ` (no other dependencies)
-- Override the server URL: ` + "`DUFFEL_URL=%s ./duffel.sh ls`" + `
+- Override the server URL: ` + "`DUFFEL_URL=%s ./duffel.sh find \"topic\"`" + `
 `
 
 // agentSnippetProject is the project-scoped markdown template.
 // %s slots: (1) project path, (2) base URL description, (3) base URL download,
-// (4-11) project path in examples, (12) base URL for env override.
+// (4) project path prefix, (5) project path prefix, (6) project path read example,
+// (7) project path write example, (8) base URL for env override.
 var agentSnippetProject = `# Duffel — %s
 
-Project notes are stored in duffel at %s. All paths below are relative to this project.
+Project notes are stored in duffel at %s.
 
 ## Setup
 
@@ -415,22 +411,31 @@ Download the CLI script (one-time):
 curl -s %s/api/agent/script > ./duffel.sh && chmod +x ./duffel.sh
 ` + "```" + `
 
-## Commands
+## LLM Search-First Workflow (Project Scoped)
 
-| Command | Description |
-|---------|-------------|
-| ` + "`duffel ls %s`" + ` | List project files |
-| ` + "`duffel read %s/<file>`" + ` | Read a project note |
-| ` + "`duffel write %s/<file> <content>`" + ` | Create/update a project note |
-| ` + "`duffel rm %s/<file>`" + ` | Delete a project note |
-| ` + "`duffel mkdir %s/<subdir>`" + ` | Create a subdirectory |
-| ` + "`duffel mv %s/<old> %s/<new>`" + ` | Move/rename a project file |
-| ` + "`duffel journal create %s/log.md <content>`" + ` | Create a project journal |
-| ` + "`duffel search <query> [options]`" + ` | Search notes (-n limit, -o offset, -s score/date, -p prefix, --after/--before date) |
+1. Start inside the project path:
+   - ` + "`duffel find \"<topic terms>\" -p %s`" + `
+2. Expand with cheap path-only pagination:
+   - ` + "`duffel search \"<term1 OR term2 OR term*>\" --paths -p %s -n 30 -o 0`" + `
+3. Read only selected files:
+   - ` + "`duffel read %s/<file>.md`" + `
+
+Token-saving defaults:
+- Prefer ` + "`find`" + ` and ` + "`search --paths`" + ` before ` + "`read`" + `.
+- Use small limits first (` + "`-n 5`" + ` to ` + "`-n 8`" + `).
+- Use ` + "`--brief`" + ` or ` + "`--fields`" + ` when you need metadata without full snippets.
+
+## Quick Commands
+
+- ` + "`duffel find <query> [options]`" + ` (` + "`-n 8 --brief`" + ` default)
+- ` + "`duffel search <query> --paths`" + ` (path-only)
+- ` + "`duffel search <query> --brief`" + ` (path/title/modified_at/score)
+- ` + "`duffel search <query> --fields path,title`" + ` (custom)
+- ` + "`duffel write %s/<file>.md <content>`" + ` (create/update)
 
 ## Notes
 
 - All output is plain text, optimized for LLM consumption
 - The script requires ` + "`curl`" + ` (no other dependencies)
-- Override the server URL: ` + "`DUFFEL_URL=%s ./duffel.sh ls`" + `
+- Override the server URL: ` + "`DUFFEL_URL=%s ./duffel.sh find \"topic\"`" + `
 `

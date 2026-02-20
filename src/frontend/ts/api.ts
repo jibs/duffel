@@ -18,8 +18,20 @@ export interface FileResponse {
 export interface SearchResult {
   path: string;
   file: string;
+  title: string;
   snippet: string;
   content: string;
+  score: number;
+  modified_at: string;
+}
+
+export interface SearchOptions {
+  prefix?: string;
+  limit?: number;
+  offset?: number;
+  sort?: string;
+  after?: string;
+  before?: string;
 }
 
 const BASE = "/api";
@@ -82,12 +94,15 @@ export function appendJournal(path: string, content: string): Promise<void> {
   return request<void>("POST", `/journal/${path}/append`, { content });
 }
 
-export function search(query: string, { prefix = "" } = {}): Promise<SearchResult[]> {
-  let url = `/search?q=${encodeURIComponent(query)}`;
-  if (prefix) {
-    url += `&prefix=${encodeURIComponent(prefix)}`;
-  }
-  return request<SearchResult[]>("GET", url);
+export function search(query: string, opts: SearchOptions = {}): Promise<SearchResult[]> {
+  const params = new URLSearchParams({ q: query });
+  if (opts.prefix) params.set("prefix", opts.prefix);
+  if (opts.limit != null) params.set("limit", String(opts.limit));
+  if (opts.offset != null) params.set("offset", String(opts.offset));
+  if (opts.sort) params.set("sort", opts.sort);
+  if (opts.after) params.set("after", opts.after);
+  if (opts.before) params.set("before", opts.before);
+  return request<SearchResult[]>("GET", `/search?${params.toString()}`);
 }
 
 export async function fetchAgentSnippet(path: string): Promise<string> {

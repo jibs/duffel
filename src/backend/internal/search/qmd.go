@@ -131,14 +131,20 @@ func (s *Searcher) Search(opts SearchOptions) ([]Result, error) {
 	return results, nil
 }
 
-// findQmd locates the qmd binary, checking ./node_modules/qmd/qmd first,
+// findQmd locates the qmd binary, checking node_modules paths first,
 // then falling back to PATH lookup.
 func findQmd() (string, error) {
 	// Check node_modules (installed via npm/pnpm)
-	local := filepath.Join("node_modules", "qmd", "qmd")
-	if abs, err := filepath.Abs(local); err == nil {
-		if _, err := os.Stat(abs); err == nil {
-			return abs, nil
+	candidates := []string{
+		filepath.Join("node_modules", ".bin", "qmd"),
+		filepath.Join("node_modules", "@tobilu", "qmd", "qmd"),
+		filepath.Join("node_modules", "qmd", "qmd"),
+	}
+	for _, local := range candidates {
+		if abs, err := filepath.Abs(local); err == nil {
+			if _, err := os.Stat(abs); err == nil {
+				return abs, nil
+			}
 		}
 	}
 	// Fall back to PATH
@@ -150,7 +156,7 @@ func findQmd() (string, error) {
 func StartIndexing(collection string, onDone func(error)) error {
 	qmdPath, err := findQmd()
 	if err != nil {
-		return fmt.Errorf("qmd not found (checked ./node_modules/qmd/qmd and PATH): %w", err)
+		return fmt.Errorf("qmd not found (checked node_modules and PATH): %w", err)
 	}
 
 	cmd := exec.Command(qmdPath, "update")
@@ -191,7 +197,7 @@ func MapPaths(results []Result, storeRoot string) []Result {
 func EnsureCollection(name, dataDir string) error {
 	qmdPath, err := findQmd()
 	if err != nil {
-		return fmt.Errorf("qmd not found (checked ./node_modules/qmd/qmd and PATH): %w", err)
+		return fmt.Errorf("qmd not found (checked node_modules and PATH): %w", err)
 	}
 
 	absDataDir, err := filepath.Abs(dataDir)

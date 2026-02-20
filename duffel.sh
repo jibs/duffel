@@ -2,7 +2,7 @@
 set -euo pipefail
 
 DUFFEL_URL="${DUFFEL_URL:-http://localhost:4386}"
-DUFFEL_SCRIPT_VERSION="1"
+DUFFEL_SCRIPT_VERSION="3"
 
 check_version() {
   local server_version
@@ -33,7 +33,17 @@ Commands:
   unarchive <path>                 Unarchive file
   journal create <path> [content]  Create journal
   journal append <path> <content>  Append to journal
-  search <query>                   Search notes
+  find <query> [options]            Search-first helper (defaults: -n 8 --brief)
+  search <query> [options]          Search notes
+    -n <limit>                     Max results (default 20, max 100)
+    -o <offset>                    Skip N results (pagination)
+    -s <sort>                      Sort by: score (default) or date
+    -p <prefix>                    Filter by path prefix
+    --after <date>                 Only docs modified after ISO date
+    --before <date>                Only docs modified before ISO date
+    --fields <csv>                 Projection: path,title,snippet,score,modified_at
+    --brief                        Equivalent to --fields path,title,modified_at,score
+    --paths                        Equivalent to --fields path
 USAGE
   exit 1
 }
@@ -201,14 +211,47 @@ cmd_journal_append() {
 }
 
 cmd_search() {
-  local query="$*"
+  local limit="" offset="" sort="" prefix="" after="" before="" fields=""
+  local query_parts=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -n)     shift; limit="$1" ;;
+      -o)     shift; offset="$1" ;;
+      -s)     shift; sort="$1" ;;
+      -p)     shift; prefix="$1" ;;
+      --after)  shift; after="$1" ;;
+      --before) shift; before="$1" ;;
+      --fields) shift; fields="$1" ;;
+      --brief) fields="path,title,modified_at,score" ;;
+      --paths) fields="path" ;;
+      *)      query_parts+=("$1") ;;
+    esac
+    shift
+  done
+  local query="${query_parts[*]}"
+  if [ -z "$query" ]; then
+    echo "error: search query is required"
+    return 1
+  fi
+  local curl_args=(-s -G --data-urlencode "q=${query}")
+  [ -n "$limit" ]  && curl_args+=(--data-urlencode "limit=${limit}")
+  [ -n "$offset" ] && curl_args+=(--data-urlencode "offset=${offset}")
+  [ -n "$sort" ]   && curl_args+=(--data-urlencode "sort=${sort}")
+  [ -n "$prefix" ] && curl_args+=(--data-urlencode "prefix=${prefix}")
+  [ -n "$after" ]  && curl_args+=(--data-urlencode "after=${after}")
+  [ -n "$before" ] && curl_args+=(--data-urlencode "before=${before}")
+  [ -n "$fields" ] && curl_args+=(--data-urlencode "fields=${fields}")
   local response
-  response=$(curl -s -G --data-urlencode "q=${query}" "${DUFFEL_URL}/api/search")
+  response=$(curl "${curl_args[@]}" "${DUFFEL_URL}/api/search")
   if printf '%s' "$response" | grep -q '"error"'; then
     printf '%s' "$response" | sed -n 's/.*"error" *: *"\([^"]*\)".*/\1/p'
     return 1
   fi
   printf '%s\n' "$response"
+}
+
+cmd_find() {
+  cmd_search -n 8 --brief "$@"
 }
 
 # Main dispatch
@@ -234,6 +277,7 @@ case "$1" in
       *) usage ;;
     esac
     ;;
+  find)     shift; [ $# -lt 1 ] && usage; cmd_find "$@" ;;
   search)   shift; [ $# -lt 1 ] && usage; cmd_search "$@" ;;
   *)        usage ;;
 esac
