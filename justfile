@@ -3,8 +3,12 @@ set dotenv-load
 default:
     @just --list
 
+# Build TypeScript
+build-js:
+    pnpm tsc
+
 # Run dev server
-dev:
+dev: build-js
     go run ./src/backend/cmd/server
 
 # Build binary
@@ -53,7 +57,7 @@ test-live:
 # Format code
 fmt:
     gofmt -w ./src/backend/ ./tests/
-    pnpm eslint --fix src/frontend/js/
+    pnpm eslint --fix src/frontend/ts/
 
 # Check formatting
 fmt-check:
@@ -73,17 +77,18 @@ lint-go:
 
 # Lint JS
 lint-js:
-    pnpm eslint src/frontend/js/
+    pnpm eslint src/frontend/ts/
 
-# Type check (go vet)
+# Type check (go vet + tsc)
 typecheck:
     #!/usr/bin/env bash
     set -euo pipefail
     pkgs=$(go list ./src/backend/... ./tests/unit/backend/... ./tests/integration/backend/... 2>/dev/null)
     go vet $pkgs
+    pnpm tsc --noEmit
 
 # CI pipeline
-ci: fmt-check lint typecheck test
+ci: fmt-check lint typecheck build-js test
 
 # Deploy
 deploy:
@@ -92,4 +97,5 @@ deploy:
 # Clean build artifacts
 clean:
     rm -f duffel
+    rm -rf src/frontend/js/
     go clean ./...

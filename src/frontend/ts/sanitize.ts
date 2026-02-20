@@ -18,7 +18,7 @@ const URL_ATTRS = new Set(["href", "src", "xlink:href", "formaction"]);
 const SAFE_SCHEMES = new Set(["http:", "https:", "mailto:", "tel:"]);
 const HAS_SCHEME = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
 
-function isSafeURL(url) {
+function isSafeURL(url: string): boolean {
   const value = (url || "").trim();
   if (!value) {
     return true;
@@ -36,14 +36,14 @@ function isSafeURL(url) {
   return SAFE_SCHEMES.has(scheme);
 }
 
-function withSafeLinkRel(anchor) {
+function withSafeLinkRel(anchor: HTMLAnchorElement): void {
   const existing = (anchor.getAttribute("rel") || "").split(/\s+/).filter(Boolean);
   const required = new Set(["noopener", "noreferrer"]);
   existing.forEach((token) => required.add(token));
   anchor.setAttribute("rel", Array.from(required).join(" "));
 }
 
-export function sanitizeHTML(html) {
+export function sanitizeHTML(html: string): string {
   const template = document.createElement("template");
   template.innerHTML = html || "";
 
@@ -69,7 +69,7 @@ export function sanitizeHTML(html) {
     });
 
     if (tag === "a") {
-      withSafeLinkRel(node);
+      withSafeLinkRel(node as HTMLAnchorElement);
     }
   });
 

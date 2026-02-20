@@ -2,13 +2,13 @@ import { appendJournal } from "./api.js";
 import { navigate } from "./app.js";
 import { sanitizeHTML } from "./sanitize.js";
 
-const journalEntries = document.getElementById("journal-entries");
-const journalInput = document.getElementById("journal-input");
-const btnAppend = document.getElementById("btn-journal-append");
+const journalEntries = document.getElementById("journal-entries")!;
+const journalInput = document.getElementById("journal-input") as HTMLTextAreaElement;
+const btnAppend = document.getElementById("btn-journal-append")!;
 
-let currentPath = null;
+let currentPath: string | null = null;
 
-export function showJournal(path, content) {
+export function showJournal(path: string, content: string): void {
   currentPath = path;
   journalInput.value = "";
 
@@ -30,6 +30,6 @@ btnAppend.addEventListener("click", async () => {
     journalInput.value = "";
     navigate(`#/${currentPath}`);
   } catch (err) {
-    alert(`Append failed: ${err.message}`);
+    alert(`Append failed: ${(err as Error).message}`);
   }
 });

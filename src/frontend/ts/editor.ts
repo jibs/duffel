@@ -2,21 +2,21 @@ import { writeFile, readFile } from "./api.js";
 import { navigate } from "./app.js";
 import { sanitizeHTML } from "./sanitize.js";
 
-const viewEditor = document.getElementById("view-editor");
-const editorSource = document.getElementById("editor-source");
-const editorPreview = document.getElementById("editor-preview");
-const btnSave = document.getElementById("btn-save");
-const btnCancel = document.getElementById("btn-cancel");
+const viewEditor = document.getElementById("view-editor")!;
+const editorSource = document.getElementById("editor-source") as HTMLTextAreaElement;
+const editorPreview = document.getElementById("editor-preview")!;
+const btnSave = document.getElementById("btn-save")!;
+const btnCancel = document.getElementById("btn-cancel")!;
 
-let currentPath = null;
+let currentPath: string | null = null;
 
-export function openEditor(path, content) {
+export function openEditor(path: string, content: string): void {
   currentPath = path;
   editorSource.value = content;
   updatePreview();
 }
 
-function updatePreview() {
+function updatePreview(): void {
   if (typeof marked !== "undefined") {
     editorPreview.innerHTML = sanitizeHTML(marked.parse(editorSource.value));
   } else {
@@ -32,7 +32,7 @@ btnSave.addEventListener("click", async () => {
     await writeFile(currentPath, editorSource.value);
     navigate(`#/${currentPath}`);
   } catch (err) {
-    alert(`Save failed: ${err.message}`);
+    alert(`Save failed: ${(err as Error).message}`);
   }
 });
 
@@ -49,8 +49,10 @@ btnCancel.addEventListener("click", async () => {
 
 // Keyboard shortcut: Cmd/Ctrl+S to save
 viewEditor.addEventListener("keydown", (e) => {
-  if ((e.metaKey || e.ctrlKey) && e.key === "s") {
-    e.preventDefault();
-    btnSave.click();
+  if ((e as KeyboardEvent).metaKey || (e as KeyboardEvent).ctrlKey) {
+    if ((e as KeyboardEvent).key === "s") {
+      e.preventDefault();
+      btnSave.click();
+    }
   }
 });

@@ -34,7 +34,7 @@ Journal rules:
 
 ## Architecture
 - **Backend:** Go with chi router
-- **Frontend:** Static HTML/CSS/JS, no build step
+- **Frontend:** Static HTML/CSS/TypeScript, compiled to JS via `tsc`
 - **Storage:** Filesystem, paths mirror URLs, data dir defaults to `./data`
 - **Search:** Via qmd CLI (hybrid markdown search)
 
@@ -47,7 +47,7 @@ Journal rules:
 
 ## Code Style
 - Go: standard library style, `gofmt`, no unnecessary abstractions
-- JS: vanilla ES modules, no framework, ESLint for linting
+- TS: vanilla ES modules, no framework, strict TypeScript, `typescript-eslint` for linting
 - Keep functions small and focused
 - Error messages should be user-friendly
 
@@ -65,12 +65,12 @@ Journal rules:
 ## Important Paths
 - API handlers: `src/backend/internal/api/`
 - Storage layer: `src/backend/internal/storage/`
-- Frontend JS: `src/frontend/js/`
+- Frontend TS: `src/frontend/ts/` (source), `src/frontend/js/` (build output)
 - Config: `src/backend/internal/config/`
 
 ## Directory Layout
 - `src/backend/` — Go server code
-- `src/frontend/` — Static HTML/CSS/JS
+- `src/frontend/` — Static HTML/CSS/TS (TS compiles to JS)
 - `tests/` — Test suites (unit, integration, e2e, live)
 - `ops/` — Deployment and documentation
 - `data/` — Storage directory (gitignored)

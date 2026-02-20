@@ -5,6 +5,7 @@ import {
   archiveFile,
   createDir,
   fetchAgentSnippet,
+  FileResponse,
 } from "./api.js";
 import { loadTree, highlightActive } from "./browser.js";
 import { openEditor } from "./editor.js";
@@ -12,34 +13,36 @@ import { showJournal } from "./journal.js";
 import { sanitizeHTML } from "./sanitize.js";
 import "./search.js";
 
-const views = {
-  file: document.getElementById("view-file"),
-  editor: document.getElementById("view-editor"),
-  journal: document.getElementById("view-journal"),
-  dir: document.getElementById("view-dir"),
-  search: document.getElementById("view-search"),
-  empty: document.getElementById("view-empty"),
+type ViewName = "file" | "editor" | "journal" | "dir" | "search" | "empty";
+
+const views: Record<ViewName, HTMLElement> = {
+  file: document.getElementById("view-file")!,
+  editor: document.getElementById("view-editor")!,
+  journal: document.getElementById("view-journal")!,
+  dir: document.getElementById("view-dir")!,
+  search: document.getElementById("view-search")!,
+  empty: document.getElementById("view-empty")!,
 };
 
-const breadcrumb = document.getElementById("breadcrumb");
-const fileRendered = document.getElementById("file-rendered");
-const dirListing = document.getElementById("dir-listing");
-const btnEdit = document.getElementById("btn-edit");
-const btnArchive = document.getElementById("btn-archive");
-const btnDelete = document.getElementById("btn-delete");
-const btnNewFile = document.getElementById("btn-new-file");
-const btnNewFolder = document.getElementById("btn-new-folder");
-const btnAgentSnippet = document.getElementById("btn-agent-snippet");
+const breadcrumb = document.getElementById("breadcrumb")!;
+const fileRendered = document.getElementById("file-rendered")!;
+const dirListing = document.getElementById("dir-listing")!;
+const btnEdit = document.getElementById("btn-edit")!;
+const btnArchive = document.getElementById("btn-archive")!;
+const btnDelete = document.getElementById("btn-delete")!;
+const btnNewFile = document.getElementById("btn-new-file")!;
+const btnNewFolder = document.getElementById("btn-new-folder")!;
+const btnAgentSnippet = document.getElementById("btn-agent-snippet")!;
 
-let currentFile = null;
+let currentFile: FileResponse | null = null;
 
-function showView(name) {
+function showView(name: ViewName): void {
   Object.entries(views).forEach(([key, el]) => {
     el.classList.toggle("hidden", key !== name);
   });
 }
 
-function updateBreadcrumb(path) {
+function updateBreadcrumb(path: string): void {
   breadcrumb.innerHTML = "";
   if (!path || path === "/") {
     breadcrumb.innerHTML = '<span>~</span>';
@@ -65,7 +68,7 @@ function updateBreadcrumb(path) {
   }
 }
 
-async function showFile(path) {
+async function showFile(path: string): Promise<void> {
   try {
     const file = await readFile(path);
     currentFile = file;
@@ -77,8 +80,8 @@ async function showFile(path) {
     } else {
       if (typeof marked !== "undefined") {
         // Convert [[wiki-links]] to standard markdown links before parsing
-        const content = file.content.replace(/\[\[([^\]]+)\]\]/g, (_, target) => {
-          const label = target.split("/").pop().replace(/\.md$/, "").replace(/-/g, " ");
+        const content = file.content.replace(/\[\[([^\]]+)\]\]/g, (_: string, target: string) => {
+          const label = target.split("/").pop()!.replace(/\.md$/, "").replace(/-/g, " ");
           return `[${label}](${target})`;
         });
         fileRendered.innerHTML = sanitizeHTML(marked.parse(content));
@@ -106,7 +109,7 @@ async function showFile(path) {
   }
 }
 
-async function showDirectory(path) {
+async function showDirectory(path: string): Promise<void> {
   try {
     const dir = await listDir(path);
     currentFile = null;
@@ -163,17 +166,17 @@ async function showDirectory(path) {
   }
 }
 
-function formatSize(bytes) {
+function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function navigate(hash) {
+export function navigate(hash: string): void {
   window.location.hash = hash;
 }
 
-async function handleRoute() {
+async function handleRoute(): Promise<void> {
   const hash = window.location.hash || "#/";
   const path = hash.replace(/^#\/?/, "");
 
@@ -218,7 +221,7 @@ btnArchive.addEventListener("click", async () => {
     loadTree();
     window.location.hash = "#/";
   } catch (err) {
-    alert(`Archive failed: ${err.message}`);
+    alert(`Archive failed: ${(err as Error).message}`);
   }
 });
 
@@ -230,7 +233,7 @@ btnDelete.addEventListener("click", async () => {
     loadTree();
     window.location.hash = "#/";
   } catch (err) {
-    alert(`Delete failed: ${err.message}`);
+    alert(`Delete failed: ${(err as Error).message}`);
   }
 });
 
@@ -243,7 +246,7 @@ btnNewFile.addEventListener("click", () => {
   window.location.hash = `#/${fullPath}?edit`;
 });
 
-function copyToClipboard(text) {
+function copyToClipboard(text: string): Promise<void> {
   if (navigator.clipboard?.writeText) {
     return navigator.clipboard.writeText(text);
   }
@@ -258,7 +261,7 @@ function copyToClipboard(text) {
   return Promise.resolve();
 }
 
-function showSnippetModal(snippet) {
+function showSnippetModal(snippet: string): void {
   const overlay = document.createElement("div");
   overlay.className = "modal-overlay";
   overlay.innerHTML = `
@@ -270,14 +273,14 @@ function showSnippetModal(snippet) {
         <button class="snippet-close-btn">Close</button>
       </div>
     </div>`;
-  overlay.querySelector("textarea").value = snippet;
-  const copyBtn = overlay.querySelector(".snippet-copy-btn");
+  (overlay.querySelector("textarea") as HTMLTextAreaElement).value = snippet;
+  const copyBtn = overlay.querySelector(".snippet-copy-btn")!;
   copyBtn.addEventListener("click", async () => {
     await copyToClipboard(snippet);
     copyBtn.textContent = "Copied!";
     setTimeout(() => { copyBtn.textContent = "Copy"; }, 2000);
   });
-  overlay.querySelector(".snippet-close-btn").addEventListener("click", () => overlay.remove());
+  overlay.querySelector(".snippet-close-btn")!.addEventListener("click", () => overlay.remove());
   overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
   document.body.appendChild(overlay);
 }
@@ -289,7 +292,7 @@ btnAgentSnippet.addEventListener("click", async () => {
     const snippet = await fetchAgentSnippet(path || "");
     showSnippetModal(snippet);
   } catch (err) {
-    showSnippetModal(`Error fetching snippet: ${err.message}`);
+    showSnippetModal(`Error fetching snippet: ${(err as Error).message}`);
   }
 });
 
@@ -304,7 +307,7 @@ btnNewFolder.addEventListener("click", async () => {
     loadTree();
     window.location.hash = `#/${fullPath}`;
   } catch (err) {
-    alert(`Create folder failed: ${err.message}`);
+    alert(`Create folder failed: ${(err as Error).message}`);
   }
 });
 

@@ -1,22 +1,22 @@
-import { search } from "./api.js";
+import { search, SearchResult } from "./api.js";
 
-const searchInput = document.getElementById("search-input");
-const searchResults = document.getElementById("search-results");
+const searchInput = document.getElementById("search-input") as HTMLInputElement;
+const searchResults = document.getElementById("search-results")!;
 
-let debounceTimer = null;
+let debounceTimer: number | null = null;
 
 searchInput.addEventListener("input", () => {
-  clearTimeout(debounceTimer);
+  if (debounceTimer !== null) clearTimeout(debounceTimer);
   const query = searchInput.value.trim();
   if (!query) {
     hideSearch();
     return;
   }
-  debounceTimer = setTimeout(() => runSearch(query), 300);
+  debounceTimer = window.setTimeout(() => runSearch(query), 300);
 });
 
 // Get the current project (top-level folder) from the URL hash.
-function getCurrentPrefix() {
+function getCurrentPrefix(): string {
   const hash = window.location.hash || "#/";
   const path = hash.replace(/^#\/?/, "").replace(/\?.*$/, "");
   if (!path) return "";
@@ -25,18 +25,18 @@ function getCurrentPrefix() {
   return first ? first + "/" : "";
 }
 
-async function runSearch(query) {
+async function runSearch(query: string): Promise<void> {
   showSearch();
   try {
     const prefix = getCurrentPrefix();
     const results = await search(query, { prefix });
     renderResults(results, prefix);
   } catch (err) {
-    renderStatus(err.message);
+    renderStatus((err as Error).message);
   }
 }
 
-function renderResults(data, prefix) {
+function renderResults(data: SearchResult[], prefix: string): void {
   searchResults.replaceChildren();
 
   if (Array.isArray(data) && data.length === 0) {
@@ -77,7 +77,7 @@ function renderResults(data, prefix) {
   }
 }
 
-function renderStatus(message) {
+function renderStatus(message: string): void {
   searchResults.replaceChildren();
   const empty = document.createElement("p");
   empty.className = "empty-state";
@@ -85,12 +85,12 @@ function renderStatus(message) {
   searchResults.appendChild(empty);
 }
 
-function showSearch() {
+function showSearch(): void {
   document.querySelectorAll(".view").forEach((v) => v.classList.add("hidden"));
-  document.getElementById("view-search").classList.remove("hidden");
+  document.getElementById("view-search")!.classList.remove("hidden");
 }
 
-function hideSearch() {
+function hideSearch(): void {
   searchInput.value = "";
   searchResults.innerHTML = "";
 }

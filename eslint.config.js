@@ -1,10 +1,10 @@
-import js from "@eslint/js";
+import tseslint from "typescript-eslint";
 import globals from "globals";
 
-export default [
-  js.configs.recommended,
+export default tseslint.config(
+  ...tseslint.configs.recommended,
   {
-    files: ["src/frontend/js/**/*.js"],
+    files: ["src/frontend/ts/**/*.ts"],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "module",
@@ -14,8 +14,8 @@ export default [
       },
     },
     rules: {
-      "no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
+      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
       "no-console": "off",
     },
   },
-];
+);

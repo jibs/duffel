@@ -1,10 +1,10 @@
 import { listDir } from "./api.js";
 
-const fileTree = document.getElementById("file-tree");
+const fileTree = document.getElementById("file-tree")!;
 
-let currentExpandedPaths = new Set();
+const currentExpandedPaths = new Set<string>();
 
-export async function loadTree(basePath = "", depth = 0) {
+export async function loadTree(basePath = "", depth = 0): Promise<void> {
   if (depth === 0) {
     fileTree.innerHTML = "";
   }
@@ -24,8 +24,8 @@ export async function loadTree(basePath = "", depth = 0) {
       const item = document.createElement("div");
       item.className = "tree-item";
       item.dataset.path = fullPath;
-      item.dataset.isDir = entry.isDir;
-      item.dataset.isJournal = entry.isJournal || false;
+      item.dataset.isDir = String(entry.isDir);
+      item.dataset.isJournal = String(entry.isJournal || false);
 
       // Indentation
       for (let i = 0; i < depth; i++) {
@@ -70,7 +70,7 @@ export async function loadTree(basePath = "", depth = 0) {
   }
 }
 
-async function toggleFolder(path, item, depth) {
+async function toggleFolder(path: string, item: HTMLElement, depth: number): Promise<void> {
   if (currentExpandedPaths.has(path)) {
     currentExpandedPaths.delete(path);
     // Remove children
@@ -88,13 +88,13 @@ async function toggleFolder(path, item, depth) {
       return a.name.localeCompare(b.name);
     });
 
-    let insertAfter = item;
+    let insertAfter: Element = item;
     for (const entry of entries) {
       const fullPath = `${path}/${entry.name}`;
       const child = document.createElement("div");
       child.className = "tree-item";
       child.dataset.path = fullPath;
-      child.dataset.isDir = entry.isDir;
+      child.dataset.isDir = String(entry.isDir);
       child.dataset.parentPath = path;
 
       for (let i = 0; i <= depth; i++) {
@@ -129,22 +129,22 @@ async function toggleFolder(path, item, depth) {
   window.location.hash = `#/${path}`;
 }
 
-function removeChildItems(item) {
-  let next = item.nextElementSibling;
-  while (next && next.dataset.parentPath && isChildOf(next, item.dataset.path)) {
+function removeChildItems(item: HTMLElement): void {
+  let next = item.nextElementSibling as HTMLElement | null;
+  while (next && next.dataset.parentPath && isChildOf(next, item.dataset.path || "")) {
     const toRemove = next;
-    next = next.nextElementSibling;
+    next = next.nextElementSibling as HTMLElement | null;
     toRemove.remove();
   }
 }
 
-function isChildOf(element, parentPath) {
+function isChildOf(element: HTMLElement, parentPath: string): boolean {
   const path = element.dataset.path || "";
   return path.startsWith(parentPath + "/");
 }
 
-export function highlightActive(path) {
+export function highlightActive(path: string): void {
   fileTree.querySelectorAll(".tree-item").forEach((el) => {
-    el.classList.toggle("active", el.dataset.path === path);
+    el.classList.toggle("active", (el as HTMLElement).dataset.path === path);
   });
 }
