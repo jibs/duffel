@@ -24,7 +24,7 @@ Replace local/private commit identity with GitHub noreply identity.
 
 ```bash
 cat > /tmp/duffel-mailmap <<'MAP'
-Public Name <github-username@users.noreply.github.com> <jibs@example.com>
+Public Name <github-username@users.noreply.github.com> <old-email@example.com>
 MAP
 ```
 
