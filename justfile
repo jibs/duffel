@@ -73,7 +73,7 @@ lint: lint-go lint-js
 
 # Lint Go
 lint-go:
-    golangci-lint run ./src/backend/...
+    go run github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8 run ./src/backend/...
 
 # Lint JS
 lint-js:
@@ -88,7 +88,7 @@ typecheck:
     pnpm tsc --noEmit
 
 # CI pipeline
-ci: fmt-check lint typecheck build-js test
+ci: fmt-check lint typecheck build-js test release-audit
 
 # Deploy
 deploy:
@@ -104,3 +104,7 @@ clean:
     rm -f duffel
     rm -rf src/frontend/js/
     go clean ./...
+
+# Public release privacy/safety checks
+release-audit:
+    ./ops/scripts/release_audit.sh

@@ -1,37 +1,32 @@
 # Duffel
 
-Duffel is a local-network markdown notes tool with:
+Duffel is a local-network markdown workspace for humans and LLM coding agents to collaborate through a shared, searchable repository of notes.
 
-- A web UI
-- A JSON API
-- A lightweight agent CLI (`duffel.sh`)
+It combines:
 
-Storage is filesystem-backed, and URL paths map directly to files/directories under a data root.
+- A web UI for browsing and editing notes
+- A JSON API for automation and integrations
+- A lightweight CLI (`duffel.sh`) for model-friendly retrieval and updates
+
+Storage is filesystem-backed, and URL paths map directly to files/directories under the data root.
 
 ## Why Duffel
 
-- Fast, simple note storage with no database service to run
-- Markdown-first workflow
+Duffel is optimized for coding workflows where models need fast context retrieval before making changes.
+
+- Search-first workflow (`find`/`search`) to reduce token usage
+- Markdown-native notes and design docs
 - Journal files with timestamped append entries
-- Archive/unarchive workflow using `.archive/` sibling directories
-- Optional full-text search powered by qmd
-- Agent-friendly API and copyable prompt snippet
-
-## Project Layout
-
-- `src/backend/` Go server (chi router + handlers + storage)
-- `src/frontend/` static frontend assets
-- `tests/` unit/integration/e2e/live tests
-- `ops/` operational docs
-- `data/` notes root (gitignored by default)
+- Simple archive/unarchive behavior using `.archive/` sibling directories
+- No database service to run
 
 ## Requirements
 
-- Go `1.25+`
-- Node.js + pnpm (for frontend tooling and `qmd` dependency)
-- `just` command runner
+- Go `1.26+`
+- Node.js + pnpm
+- `just`
 - `curl`
-- Optional: `qmd` (search support; local package is installed via `pnpm`)
+- Optional: `qmd` (local package installed via `pnpm`)
 
 ## Quick Start
 
@@ -40,9 +35,7 @@ just setup
 just dev
 ```
 
-Then open:
-
-- `http://localhost:4386`
+Then open `http://localhost:4386`.
 
 Default runtime config:
 
@@ -50,22 +43,52 @@ Default runtime config:
 - `DUFFEL_DATA_DIR=./data`
 - `DUFFEL_FRONTEND_DIR=./src/frontend`
 
-## Web UI
+## LLM Collaboration Workflow
 
-Key capabilities:
+Recommended flow for coding agents and humans:
 
-- Browse directories and files
+1. Discover relevant notes with compact retrieval first.
+2. Expand only when needed.
+3. Read targeted files.
+4. Write or append updates after synthesis.
+
+Example:
+
+```bash
+# Start compact
+./duffel.sh find "auth session cache" -p projects/
+
+# Expand cheaply (paths only)
+./duffel.sh search "auth OR session OR cache*" --paths -p projects/ -n 30 -o 0
+
+# Read strongest match
+./duffel.sh read projects/auth/session-design.md
+
+# Append change notes
+./duffel.sh journal append self/journal.md "API: updated session invalidation behavior"
+```
+
+Token-saving defaults:
+
+- Prefer `find` before `ls`
+- Start with small limits (`-n 5` to `-n 8`)
+- Use `--paths` or `--brief` before full result payloads
+- Scope with `-p <prefix>` and optional `--after` / `--before`
+
+## Web UI Capabilities
+
+- Browse files and directories
 - Create files/folders
 - Edit markdown with preview
-- Render markdown safely in read mode
+- Safe markdown rendering in read mode
 - Journal append view for journal files
-- Archive or delete files
-- Search sidebar with scoped prefix behavior
-- Copy "Agent Snippet" for current project path
+- Archive/delete actions
+- Search with sort, prefix, and date filters
+- Copy project-scoped agent snippet
 
 ## API Overview
 
-All API routes are under `/api` and return JSON (except agent script/snippet/version endpoints).
+All API routes are under `/api` and return JSON, except the agent script/snippet/version endpoints.
 
 ### Filesystem
 
@@ -85,10 +108,10 @@ All API routes are under `/api` and return JSON (except agent script/snippet/ver
 - `POST /api/journal/*` create journal body: `{ "content": "..." }`
 - `POST /api/journal/*/append` append entry body: `{ "content": "..." }`
 
-Journal format:
+Journal rules:
 
-- Front matter: `type: journal`
-- Append entries include timestamp header `## YYYY-MM-DD HH:MM`
+- Front matter includes `type: journal`
+- Append entries include `## YYYY-MM-DD HH:MM`
 - Existing journals are protected from normal `PUT` writes
 
 ### Search
@@ -103,12 +126,9 @@ Optional query params:
 - `prefix` path prefix filter
 - `after` ISO date lower bound (`modified_at >= after`)
 - `before` ISO date upper bound (`modified_at < before`)
-- `fields` comma-separated projection subset:
-  - `path,title,snippet,score,modified_at`
+- `fields` comma-separated subset: `path,title,snippet,score,modified_at`
 
-Search uses qmd-backed FTS5 query syntax (phrases, boolean terms, prefix wildcard, field filters such as `title:...`).
-
-If qmd has not indexed yet, `/api/search` returns `503`.
+Search uses qmd-backed FTS5 syntax (phrases, boolean terms, prefix wildcard, and field filters like `title:...`).
 
 ### Agent Endpoints
 
@@ -140,7 +160,7 @@ Core commands:
 - `duffel find <query> [options]`
 - `duffel search <query> [options]`
 
-Search-first options in CLI:
+Search options:
 
 - `-n <limit>`
 - `-o <offset>`
@@ -152,48 +172,44 @@ Search-first options in CLI:
 - `--brief` (`path,title,modified_at,score`)
 - `--paths` (`path` only)
 
-`find` is a compact helper equivalent to:
-
-- `search -n 8 --brief ...`
+`find` is shorthand for `search -n 8 --brief ...`.
 
 ## Search Setup Notes
 
 At startup, Duffel attempts to:
 
-- Ensure qmd collection `duffel` is configured for the data directory
+- Ensure qmd collection `duffel` points at the data directory
 - Start background indexing (`qmd update`)
 - Open qmd index at `~/.cache/qmd/index.sqlite`
 
-If this fails, the app still runs, but search is unavailable until qmd indexing is healthy.
+If qmd is unavailable, Duffel still runs and search endpoints return unavailable until indexing succeeds.
+
+## Security and Deployment Boundaries
+
+Duffel is for trusted local-network usage.
+
+- No built-in authentication
+- Path traversal defenses in storage layer
+- Same-origin CORS by default
+- Cross-origin mutating requests blocked unless explicitly allowed
+- Extra allowed origins can be configured via `DUFFEL_ALLOWED_ORIGINS`
+
+Do not expose Duffel directly to the public internet without additional auth and network controls.
 
 ## Development Commands
 
-- `just setup` install deps and rebuild native addons (run on new devices)
+- `just setup` install deps and rebuild native addons
 - `just dev` run dev server
 - `just build` build `./duffel` binary
 - `just test` run unit + integration tests
-- `just lint` run Go + frontend TypeScript lint
-- `just fmt` format Go and frontend TypeScript (via ESLint `--fix`)
-- `just ci` full pipeline (`fmt-check`, `lint`, `typecheck`, `build-js`, `test`)
+- `just lint` run Go + frontend lint
+- `just fmt` format Go and frontend TypeScript
+- `just release-audit` run privacy/leakage audit on tracked files
+- `just ci` full pipeline (`fmt-check`, `lint`, `typecheck`, `build-js`, `test`, `release-audit`)
 
-## Security Model
+## Contributing and Release Docs
 
-- No authentication (intended for trusted local network usage)
-- Path traversal prevention via canonicalization and symlink checks
-- CORS allows same-origin by default
-- Additional origins can be allowed via `DUFFEL_ALLOWED_ORIGINS`
-- Cross-origin mutating API requests are blocked unless explicitly allowed
-
-## Contributing
-
-1. Make changes.
-2. Run `just ci`.
-3. Update journal with one concise entry per logical change:
-
-```bash
-./duffel.sh journal append self/journal.md "Area: what changed and why"
-```
-
-If you change `duffel.sh` behavior or its server-side contract, increment:
-
-- `agentProtocolVersion` in `src/backend/internal/api/handlers_agent.go`
+- Contribution guide: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Security policy: [SECURITY.md](SECURITY.md)
+- Agent instructions: [AGENTS.md](AGENTS.md)
+- Public release checklist: [ops/docs/public-release-checklist.md](ops/docs/public-release-checklist.md)

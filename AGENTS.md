@@ -1,96 +1,105 @@
-# Duffel — Personal Notes Tool
+# Duffel Agent Instructions
 
 ## Overview
-A personal markdown notes tool accessible over a local network. Filesystem-backed storage where URL paths mirror the directory structure.
 
-## After Every Code Change
+Duffel is a local-network markdown notes workspace with filesystem-backed storage and a search-first workflow for human + LLM collaboration.
 
-Every completed change (feature, bugfix, refactor, etc.) **must** follow these steps in order:
+The core model is simple:
 
-1. Run `just ci` — ensure all checks pass
-2. Commit and push (if requested)
-3. Log the change to the project journal:
+- Markdown files are the source of truth
+- URL paths map directly to files/directories under the data directory
+- Search is provided through qmd-backed indexing
+
+## Required Workflow After Every Code Change
+
+Every completed logical change (feature, bugfix, refactor, docs affecting behavior) must follow this order:
+
+1. Run `just ci`
+2. Commit changes (and push if requested)
+3. Append one journal entry
 
 ```bash
 ./duffel.sh journal append self/journal.md "Area: brief description of what changed and why"
 ```
 
-If the duffel CLI doesn't exist locally, download it first:
+If `duffel.sh` is missing locally:
 
 ```bash
 curl -s http://localhost:4386/api/agent/script > ./duffel.sh && chmod +x ./duffel.sh
 ```
 
-If the journal doesn't exist yet, create it first:
+If the journal file does not exist yet:
 
 ```bash
 ./duffel.sh journal create self/journal.md "Project changelog"
 ```
 
-Journal rules:
-- One entry per logical change (not per file)
-- Keep entries concise — what changed and why, not how
-- Include the affected area (e.g. "API: added version endpoint", "Frontend: fixed search rendering")
+Journal entry rules:
+
+- One entry per logical change
+- Concise summary of what changed and why
+- Include affected area (for example, `API: ...`, `Frontend: ...`, `Search: ...`)
 
 ## Architecture
-- **Backend:** Go with chi router
-- **Frontend:** Static HTML/CSS/TypeScript, compiled to JS via `tsc`
-- **Storage:** Filesystem, paths mirror URLs, data dir defaults to `./data`
-- **Search:** Via qmd CLI (hybrid markdown search)
 
-## Key Conventions
-- All API responses are JSON
-- Path security: all paths canonicalized, must stay under data dir
-- Journal files use front-matter `type: journal`, append adds `---` separator + `## YYYY-MM-DD HH:MM` timestamp
-- Archive moves files to `.archive/` sibling directory
-- No auth needed (local network tool)
+- Backend: Go + chi router
+- Frontend: static HTML/CSS/TypeScript (compiled with `tsc`)
+- Storage: filesystem under `./data` by default
+- Search: qmd CLI index/query pipeline
+
+## Core Conventions
+
+- API responses are JSON (except agent script/snippet/version endpoints)
+- All paths must be canonicalized and remain under data root
+- Journal files use front matter `type: journal`
+- Journal append inserts `---` + `## YYYY-MM-DD HH:MM` timestamp section
+- Archive moves files to a sibling `.archive/` directory
 
 ## Code Style
-- Go: standard library style, `gofmt`, no unnecessary abstractions
-- TS: vanilla ES modules, no framework, strict TypeScript, `typescript-eslint` for linting
-- Keep functions small and focused
-- Error messages should be user-friendly
 
-## Testing
-- Unit tests alongside code in `tests/unit/backend/`
-- Integration tests in `tests/integration/backend/`
-- Run `just ci` before committing
+- Go: standard library style, gofmt-compatible, minimal abstraction
+- TypeScript: strict mode, vanilla ES modules, no framework assumptions
+- Prefer small, focused functions and clear user-facing errors
 
-## Commands
-- `just setup` — install deps and rebuild native addons (run on new devices)
-- `just dev` — run dev server
-- `just ci` — full CI pipeline (fmt-check, lint, typecheck, test)
-- `just test` — run all tests
-- `just lint` — run all linters
+## Test Expectations
+
+- Unit tests: `tests/unit/backend/`
+- Integration tests: `tests/integration/backend/`
+- Run `just ci` before merge
+
+## Common Commands
+
+- `just setup` install dependencies
+- `just dev` run development server
+- `just test` run all tests
+- `just lint` run linters
+- `just ci` full checks (including release audit)
+- `just release-audit` run privacy/leak scan on tracked files
 
 ## Important Paths
+
 - API handlers: `src/backend/internal/api/`
 - Storage layer: `src/backend/internal/storage/`
-- Frontend TS: `src/frontend/ts/` (source), `src/frontend/js/` (build output)
+- Search layer: `src/backend/internal/search/`
+- Frontend TS: `src/frontend/ts/`
 - Config: `src/backend/internal/config/`
 
-## Directory Layout
-- `src/backend/` — Go server code
-- `src/frontend/` — Static HTML/CSS/TS (TS compiles to JS)
-- `tests/` — Test suites (unit, integration, e2e, live)
-- `ops/` — Deployment and documentation
-- `data/` — Storage directory (gitignored)
+## Agent CLI Contract
 
-## Agent CLI Script
+The CLI script (`duffel.sh`) is served by the backend at `/api/agent/script`.
 
-The agent CLI (`duffel.sh`) is served by the server at `/api/agent/script` and cached locally by clients. A protocol version is baked into both the script and the server to detect incompatibility.
+Compatibility is enforced by `agentProtocolVersion` in `src/backend/internal/api/handlers_agent.go`.
 
-- Version constant: `agentProtocolVersion` in `src/backend/internal/api/handlers_agent.go`
-- Version endpoint: `GET /api/agent/version` returns the current version as plain text
-- The script checks this on every invocation and errors on mismatch
+- `GET /api/agent/version` returns protocol version text
+- `duffel.sh` checks server version on every run and errors on mismatch
 
-## Release Protocol
+## Protocol Version Bump Rules
 
-When making changes that affect the agent CLI script or its API surface, you **must** increment `agentProtocolVersion` in `src/backend/internal/api/handlers_agent.go`. This includes:
+Increment `agentProtocolVersion` when changing CLI script behavior or its API contract, including:
 
-- Adding, removing, or renaming CLI commands in the script template
-- Changing API endpoint paths, methods, or response formats used by the script
-- Changing the script's argument parsing or dispatch logic
-- Modifying the `DUFFEL_URL` resolution or any behavioral contract the script depends on
+- Adding/removing/renaming script commands
+- Changing endpoint paths/methods/response formats used by the script
+- Changing script argument parsing or dispatch behavior
+- Changing `DUFFEL_URL` resolution or compatibility behavior
 
-Do **not** increment for changes that are purely server-internal (e.g. storage refactors, frontend-only changes, new endpoints not used by the script).
+Do not increment for server-internal changes that do not affect CLI/script compatibility.
