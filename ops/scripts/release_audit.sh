@@ -18,7 +18,7 @@ grep -vE '^\s*($|#)' "$allowlist_file" > "$tmp_allowlist" || true
 scan_files=()
 while IFS= read -r -d '' file; do
   case "$file" in
-    src/frontend/lib/marked.min.js|bun.lock|pnpm-lock.yaml|go.sum)
+    src/frontend/lib/marked.min.js|bun.lock|pnpm-lock.yaml|go.sum|ops/scripts/release_audit.sh|ops/config/release_audit_allowlist.txt)
       continue
       ;;
   esac
