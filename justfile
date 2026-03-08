@@ -22,7 +22,12 @@ test: test-unit test-integration test-e2e
 test-unit:
     #!/usr/bin/env bash
     set -euo pipefail
-    pkgs=$(go list ./src/backend/internal/... ./tests/unit/backend/... 2>/dev/null)
+    pkgs=$(
+        {
+            go list ./src/backend/internal/... 2>/dev/null || true
+            go list ./tests/unit/backend/... 2>/dev/null || true
+        } | sort -u
+    )
     unit_pkgs=$(printf '%s\n' "$pkgs" | rg -v '/api$' || true)
     if [ -z "$unit_pkgs" ]; then
         echo "No unit test packages found"
@@ -34,7 +39,12 @@ test-unit:
 test-integration:
     #!/usr/bin/env bash
     set -euo pipefail
-    pkgs=$(go list ./src/backend/internal/api ./tests/integration/backend/... 2>/dev/null)
+    pkgs=$(
+        {
+            go list ./src/backend/internal/api 2>/dev/null || true
+            go list ./tests/integration/backend/... 2>/dev/null || true
+        } | sort -u
+    )
     if [ -z "$pkgs" ]; then
         echo "No integration test packages found"
         exit 1
@@ -83,7 +93,17 @@ lint-js:
 typecheck:
     #!/usr/bin/env bash
     set -euo pipefail
-    pkgs=$(go list ./src/backend/... ./tests/unit/backend/... ./tests/integration/backend/... 2>/dev/null)
+    pkgs=$(
+        {
+            go list ./src/backend/... 2>/dev/null || true
+            go list ./tests/unit/backend/... 2>/dev/null || true
+            go list ./tests/integration/backend/... 2>/dev/null || true
+        } | sort -u
+    )
+    if [ -z "$pkgs" ]; then
+        echo "No packages found for typecheck"
+        exit 1
+    fi
     go vet $pkgs
     pnpm tsc --noEmit
 
