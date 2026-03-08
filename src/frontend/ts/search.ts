@@ -4,6 +4,10 @@ const sidebarInput = document.getElementById("search-input") as HTMLInputElement
 const queryInput = document.getElementById("search-query-input") as HTMLInputElement;
 const searchResults = document.getElementById("search-results")!;
 const limitSelect = document.getElementById("search-limit") as HTMLSelectElement;
+const intentInput = document.getElementById("search-intent") as HTMLInputElement;
+const candidateLimitInput = document.getElementById("search-candidate-limit") as HTMLInputElement;
+const minScoreInput = document.getElementById("search-min-score") as HTMLInputElement;
+const explainInput = document.getElementById("search-explain") as HTMLInputElement;
 const btnSearch = document.getElementById("btn-search")!;
 const btnPrev = document.getElementById("btn-search-prev") as HTMLButtonElement;
 const btnNext = document.getElementById("btn-search-next") as HTMLButtonElement;
@@ -15,9 +19,16 @@ let currentOffset = 0;
 let lastResultCount = 0;
 
 function getOpts(): SearchOptions {
+  const candidateLimit = parseInt(candidateLimitInput.value, 10);
+  const minScore = parseFloat(minScoreInput.value);
+
   return {
     limit: parseInt(limitSelect.value, 10),
     offset: currentOffset,
+    intent: intentInput.value.trim() || undefined,
+    candidate_limit: Number.isNaN(candidateLimit) || candidateLimit <= 0 ? undefined : candidateLimit,
+    min_score: Number.isNaN(minScore) || minScore < 0 ? undefined : minScore,
+    explain: explainInput.checked || undefined,
   };
 }
 
@@ -67,6 +78,29 @@ limitSelect.addEventListener("change", () => {
     runSearch(query);
   }
 });
+
+for (const el of [intentInput, candidateLimitInput, minScoreInput]) {
+  el.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const query = queryInput.value.trim();
+      if (query) {
+        currentOffset = 0;
+        runSearch(query);
+      }
+    }
+  });
+}
+
+for (const el of [candidateLimitInput, minScoreInput, explainInput]) {
+  el.addEventListener("change", () => {
+    const query = queryInput.value.trim();
+    if (query) {
+      currentOffset = 0;
+      runSearch(query);
+    }
+  });
+}
 
 // Pagination
 btnPrev.addEventListener("click", () => {
@@ -160,6 +194,10 @@ function renderResults(data: SearchResult[]): void {
     resultEl.appendChild(pathEl);
     if (metaEl.children.length > 0) resultEl.appendChild(metaEl);
     resultEl.appendChild(snippetEl);
+    if (result.explain != null) {
+      const explainEl = renderExplain(result.explain);
+      resultEl.appendChild(explainEl);
+    }
 
     resultEl.addEventListener("click", () => {
       if (path) {
@@ -170,6 +208,32 @@ function renderResults(data: SearchResult[]): void {
 
     searchResults.appendChild(resultEl);
   });
+}
+
+function renderExplain(explain: unknown): HTMLElement {
+  const details = document.createElement("details");
+  details.className = "search-explain";
+
+  const summary = document.createElement("summary");
+  summary.textContent = "Ranking details";
+  details.appendChild(summary);
+
+  const pre = document.createElement("pre");
+  pre.textContent = formatExplain(explain);
+  details.appendChild(pre);
+
+  return details;
+}
+
+function formatExplain(explain: unknown): string {
+  if (typeof explain === "string") {
+    return explain;
+  }
+  try {
+    return JSON.stringify(explain, null, 2);
+  } catch {
+    return String(explain);
+  }
 }
 
 function updatePagination(limit: number): void {

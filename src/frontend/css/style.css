@@ -395,11 +395,19 @@ button.danger:hover {
 }
 
 #search-filters input[type="text"] {
-  width: 100px;
+  width: 220px;
 }
 
-#search-filters input[type="date"] {
-  width: 130px;
+#search-filters input[type="number"] {
+  width: 90px;
+}
+
+#search-filters label.checkbox {
+  gap: 8px;
+}
+
+#search-filters label.checkbox input {
+  margin: 0;
 }
 
 .search-result {
@@ -447,6 +455,29 @@ button.danger:hover {
 .search-result .snippet {
   font-size: 13px;
   color: var(--text-muted);
+}
+
+.search-result .search-explain {
+  margin-top: 8px;
+}
+
+.search-result .search-explain summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.search-result .search-explain pre {
+  margin: 6px 0 0;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #f8f8f8;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .search-result mark {

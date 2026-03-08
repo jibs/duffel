@@ -68,6 +68,18 @@
                 <option value="50">50</option>
               </select>
             </label>
+            <label>Intent
+              <input type="text" id="search-intent" placeholder="e.g. software optimization">
+            </label>
+            <label>Candidate limit
+              <input type="number" id="search-candidate-limit" min="1" step="1" placeholder="40">
+            </label>
+            <label>Min score
+              <input type="number" id="search-min-score" min="0" max="1" step="0.01" placeholder="0">
+            </label>
+            <label class="checkbox">Explain
+              <input type="checkbox" id="search-explain">
+            </label>
           </div>
         </div>
         <div id="search-results"></div>
