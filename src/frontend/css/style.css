@@ -46,7 +46,6 @@ html, body {
 .sidebar-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   padding: 12px 16px;
   border-bottom: 1px solid var(--border);
 }
@@ -56,22 +55,17 @@ html, body {
   font-weight: 600;
 }
 
-.sidebar-actions {
+.sidebar-create-actions {
   display: flex;
-  gap: 4px;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
 }
 
-.sidebar-actions button {
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  cursor: pointer;
-  padding: 2px 8px;
-  font-size: 14px;
-}
-
-.sidebar-actions button:hover {
-  background: #e0e0e0;
+.sidebar-create-actions button {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 12px;
 }
 
 #search-bar {
