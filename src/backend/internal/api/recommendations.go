@@ -40,6 +40,7 @@ func recommendForFile(store *storage.Store, getSearcher func() *search.Searcher,
 		Limit:          recommendationFetchLimit,
 		CandidateLimit: recommendationCandidateLimit,
 		Intent:         recommendationIntent(title),
+		DisableHybrid:  true,
 	}
 
 	results, err := searcher.Search(opts)

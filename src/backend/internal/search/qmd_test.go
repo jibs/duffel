@@ -91,6 +91,38 @@ func TestBuildHybridArgs(t *testing.T) {
 	}
 }
 
+func TestBuildBM25MatchQueryPipeAlternatives(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "escaped pipe",
+			in:   `cheque-security-features\|cheque-date-validity`,
+			want: `"cheque-security-features" OR "cheque-date-validity"`,
+		},
+		{
+			name: "plain pipe",
+			in:   "alpha|beta",
+			want: `"alpha" OR "beta"`,
+		},
+		{
+			name: "no pipe",
+			in:   "single query",
+			want: "single query",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := buildBM25MatchQuery(tt.in); got != tt.want {
+				t.Fatalf("buildBM25MatchQuery(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestParseHybridResults(t *testing.T) {
 	raw := []byte(`[
 	  {
@@ -208,6 +240,114 @@ func TestSearchFallsBackToBM25WhenHybridFails(t *testing.T) {
 	results, err := s.Search(SearchOptions{Query: "performance", Collection: "duffel", Limit: 5})
 	if err != nil {
 		t.Fatalf("Search error = %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("len(results) = %d, want 1", len(results))
+	}
+	if results[0].Path != "notes/perf.md" {
+		t.Fatalf("path = %q, want notes/perf.md", results[0].Path)
+	}
+}
+
+func TestSearchBypassesHybridForPipeAlternatives(t *testing.T) {
+	db := mustOpenTestDB(t)
+	defer db.Close()
+
+	mustExec(t, db, `
+		CREATE TABLE documents (
+			rowid INTEGER PRIMARY KEY,
+			collection TEXT,
+			path TEXT,
+			title TEXT,
+			modified_at TEXT,
+			active INTEGER
+		);
+	`)
+	mustExec(t, db, `
+		CREATE VIRTUAL TABLE documents_fts USING fts5(filepath, title, body);
+	`)
+	mustExec(t, db, `
+		INSERT INTO documents(rowid, collection, path, title, modified_at, active) VALUES
+		(1, 'duffel', 'notes/a.md', 'A', '2026-03-08T00:00:00Z', 1),
+		(2, 'duffel', 'notes/b.md', 'B', '2026-03-08T00:00:00Z', 1);
+	`)
+	mustExec(t, db, `
+		INSERT INTO documents_fts(rowid, filepath, title, body) VALUES
+		(1, 'duffel/notes/a.md', 'A', 'alpha token'),
+		(2, 'duffel/notes/b.md', 'B', 'beta token');
+	`)
+
+	hybridCalled := false
+	s := &Searcher{
+		db:      db,
+		findQmd: func() (string, error) { return "/usr/bin/qmd", nil },
+		runQmd: func(_ context.Context, _ string, _ []string) ([]byte, []byte, error) {
+			hybridCalled = true
+			return nil, nil, errors.New("hybrid should be bypassed")
+		},
+		queryTimeout: time.Second,
+	}
+
+	results, err := s.Search(SearchOptions{Query: `alpha\|beta`, Collection: "duffel", Limit: 10})
+	if err != nil {
+		t.Fatalf("Search error = %v", err)
+	}
+	if hybridCalled {
+		t.Fatalf("expected hybrid to be bypassed for pipe alternation query")
+	}
+	if len(results) != 2 {
+		t.Fatalf("len(results) = %d, want 2", len(results))
+	}
+}
+
+func TestSearchDisableHybridSkipsHybrid(t *testing.T) {
+	db := mustOpenTestDB(t)
+	defer db.Close()
+
+	mustExec(t, db, `
+		CREATE TABLE documents (
+			rowid INTEGER PRIMARY KEY,
+			collection TEXT,
+			path TEXT,
+			title TEXT,
+			modified_at TEXT,
+			active INTEGER
+		);
+	`)
+	mustExec(t, db, `
+		CREATE VIRTUAL TABLE documents_fts USING fts5(filepath, title, body);
+	`)
+	mustExec(t, db, `
+		INSERT INTO documents(rowid, collection, path, title, modified_at, active)
+		VALUES (1, 'duffel', 'notes/perf.md', 'Perf', '2026-03-08T00:00:00Z', 1);
+	`)
+	mustExec(t, db, `
+		INSERT INTO documents_fts(rowid, filepath, title, body)
+		VALUES (1, 'duffel/notes/perf.md', 'Perf', 'performance tuning guide');
+	`)
+
+	hybridCalled := false
+	s := &Searcher{
+		db:      db,
+		findQmd: func() (string, error) { return "/usr/bin/qmd", nil },
+		runQmd: func(_ context.Context, _ string, _ []string) ([]byte, []byte, error) {
+			hybridCalled = true
+			return nil, nil, errors.New("hybrid should be bypassed")
+		},
+		queryTimeout: time.Second,
+	}
+
+	results, err := s.Search(SearchOptions{
+		Query:         "performance",
+		Collection:    "duffel",
+		Limit:         5,
+		DisableHybrid: true,
+	})
+	if err != nil {
+		t.Fatalf("Search error = %v", err)
+	}
+	if hybridCalled {
+		t.Fatalf("expected hybrid to be disabled")
 	}
 	if len(results) != 1 {
 		t.Fatalf("len(results) = %d, want 1", len(results))

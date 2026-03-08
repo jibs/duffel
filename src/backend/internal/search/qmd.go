@@ -44,6 +44,7 @@ type SearchOptions struct {
 	CandidateLimit int
 	MinScore       float64
 	Explain        bool
+	DisableHybrid  bool
 }
 
 // HybridSearchError indicates why hybrid qmd query execution failed.
@@ -133,13 +134,19 @@ func (s *Searcher) ensureDefaults() {
 func (s *Searcher) Search(opts SearchOptions) ([]Result, error) {
 	s.ensureDefaults()
 	opts = normalizeSearchOptions(opts)
+	bm25Opts := opts
+	bm25Opts.Query = buildBM25MatchQuery(opts.Query)
+
+	if opts.DisableHybrid || shouldBypassHybrid(opts.Query) {
+		return s.searchBM25(bm25Opts)
+	}
 
 	hybridResults, err := s.searchHybrid(opts)
 	if err == nil {
 		return hybridResults, nil
 	}
 
-	bm25Results, bm25Err := s.searchBM25(opts)
+	bm25Results, bm25Err := s.searchBM25(bm25Opts)
 	if bm25Err == nil {
 		return bm25Results, nil
 	}
@@ -168,6 +175,84 @@ func normalizeSearchOptions(opts SearchOptions) SearchOptions {
 		opts.MinScore = 0
 	}
 	return opts
+}
+
+func shouldBypassHybrid(query string) bool {
+	return len(splitPipeAlternatives(query)) > 1
+}
+
+func buildBM25MatchQuery(raw string) string {
+	query := strings.TrimSpace(raw)
+	if query == "" {
+		return ""
+	}
+
+	parts := splitPipeAlternatives(query)
+	if len(parts) <= 1 {
+		return query
+	}
+
+	phrases := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		phrases = append(phrases, quoteFTSPhrase(part))
+	}
+	if len(phrases) == 0 {
+		return query
+	}
+	if len(phrases) == 1 {
+		return phrases[0]
+	}
+	return strings.Join(phrases, " OR ")
+}
+
+func splitPipeAlternatives(query string) []string {
+	if !strings.Contains(query, "|") {
+		return []string{query}
+	}
+
+	parts := make([]string, 0, 4)
+	var current strings.Builder
+	escaped := false
+	for _, r := range query {
+		if escaped {
+			if r == '|' {
+				parts = append(parts, current.String())
+				current.Reset()
+			} else {
+				current.WriteRune('\\')
+				current.WriteRune(r)
+			}
+			escaped = false
+			continue
+		}
+
+		if r == '\\' {
+			escaped = true
+			continue
+		}
+		if r == '|' {
+			parts = append(parts, current.String())
+			current.Reset()
+			continue
+		}
+		current.WriteRune(r)
+	}
+	if escaped {
+		current.WriteRune('\\')
+	}
+	parts = append(parts, current.String())
+	return parts
+}
+
+func quoteFTSPhrase(term string) string {
+	if term == "" {
+		return term
+	}
+	return `"` + strings.ReplaceAll(term, `"`, `""`) + `"`
 }
 
 func (s *Searcher) searchHybrid(opts SearchOptions) ([]Result, error) {
