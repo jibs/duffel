@@ -16,7 +16,7 @@ build:
     go build -o duffel ./src/backend/cmd/server
 
 # Run all tests
-test: test-unit test-integration
+test: test-unit test-integration test-e2e
 
 # Unit tests
 test-unit:
