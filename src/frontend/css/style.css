@@ -287,12 +287,21 @@ button.danger:hover {
   font-size: 13px;
   color: var(--accent);
   margin-bottom: 4px;
+  overflow-wrap: anywhere;
 }
 
 .recommended-item .meta-row {
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
   margin-bottom: 4px;
+}
+
+.recommended-item .meta-row span + span::before {
+  content: "•";
+  margin-right: 6px;
+  color: var(--text-muted);
 }
 
 .recommended-item .score {
@@ -312,6 +321,15 @@ button.danger:hover {
 .recommended-item .snippet {
   font-size: 13px;
   color: var(--text-muted);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.recommended-item mark {
+  background: #fef08a;
+  color: inherit;
+  padding: 0 1px;
+  border-radius: 2px;
 }
 
 /* Editor */

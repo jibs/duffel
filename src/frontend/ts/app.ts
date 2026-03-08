@@ -178,6 +178,24 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function sanitizeSnippet(raw: string): string {
+  return raw.replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;")
+    .replace(/&lt;mark&gt;/g, "<mark>")
+    .replace(/&lt;\/mark&gt;/g, "</mark>");
+}
+
+function formatModifiedAt(raw: string): string {
+  const dt = new Date(raw);
+  if (Number.isNaN(dt.getTime())) {
+    return raw;
+  }
+  return dt.toLocaleString();
+}
+
 function renderFileRecommendations(currentPath: string, recommendations: RecommendedContent[]): void {
   fileRecommended.classList.remove("hidden");
   fileRecommendedList.replaceChildren();
@@ -209,19 +227,19 @@ function renderFileRecommendations(currentPath: string, recommendations: Recomme
     if (item.score != null) {
       const score = document.createElement("span");
       score.className = "score";
-      score.textContent = item.score.toFixed(2);
+      score.textContent = `Score ${item.score.toFixed(2)}`;
       meta.appendChild(score);
     }
     if (item.modified_at) {
       const date = document.createElement("span");
       date.className = "date";
-      date.textContent = item.modified_at;
+      date.textContent = formatModifiedAt(item.modified_at);
       meta.appendChild(date);
     }
 
     const snippet = document.createElement("div");
     snippet.className = "snippet";
-    snippet.textContent = item.snippet || "";
+    snippet.innerHTML = sanitizeSnippet(item.snippet || "");
 
     row.appendChild(title);
     row.appendChild(path);
