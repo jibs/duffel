@@ -36,7 +36,7 @@ func main() {
 
 	if err := search.EnsureCollection("duffel", cfg.DataDir); err != nil {
 		log.Printf("qmd: could not configure collection: %v", err)
-		log.Printf("qmd: install qmd and run 'qmd index' to enable search (https://github.com/tobi/qmd)")
+		log.Printf("qmd: run 'pnpm install' to provision vendored qmd, then restart the server to enable search")
 	}
 
 	var searcherPtr atomic.Pointer[search.Searcher]

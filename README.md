@@ -14,6 +14,8 @@ Notes are filesystem-backed, and URL paths map directly to files/directories und
 
 Requirements: Go `1.26+`, Node.js + pnpm, `just`, `curl`.
 
+`qmd` is vendored as a pinned npm dependency (`@tobilu/qmd@1.1.5`) and resolved from local `node_modules`; no global `qmd` install is required.
+
 ```bash
 just setup
 just dev

@@ -11,7 +11,7 @@
     "typescript-eslint": "^8.56.0"
   },
   "dependencies": {
-    "@tobilu/qmd": "^1.1.5"
+    "@tobilu/qmd": "1.1.5"
   },
   "trustedDependencies": [
     "node-llama-cpp"

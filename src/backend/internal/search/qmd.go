@@ -414,9 +414,20 @@ func (s *Searcher) searchBM25(opts SearchOptions) ([]Result, error) {
 	return results, nil
 }
 
-// findQmd locates the qmd binary, checking node_modules paths first,
-// then falling back to PATH lookup.
+// findQmd locates the vendored qmd binary in this repository.
+// It checks DUFFEL_QMD_PATH first, then local node_modules locations.
 func findQmd() (string, error) {
+	if override := strings.TrimSpace(os.Getenv("DUFFEL_QMD_PATH")); override != "" {
+		abs, err := filepath.Abs(override)
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve DUFFEL_QMD_PATH: %w", err)
+		}
+		if _, err := os.Stat(abs); err != nil {
+			return "", fmt.Errorf("DUFFEL_QMD_PATH does not point to an existing file: %w", err)
+		}
+		return abs, nil
+	}
+
 	// Check node_modules (installed via npm/pnpm)
 	candidates := []string{
 		filepath.Join("node_modules", ".bin", "qmd"),
@@ -430,8 +441,7 @@ func findQmd() (string, error) {
 			}
 		}
 	}
-	// Fall back to PATH
-	return exec.LookPath("qmd")
+	return "", fmt.Errorf("qmd not found in vendored paths; run `pnpm install` or set DUFFEL_QMD_PATH")
 }
 
 // StartIndexing runs `qmd update` in the background to re-index all collections.
@@ -439,7 +449,7 @@ func findQmd() (string, error) {
 func StartIndexing(collection string, onDone func(error)) error {
 	qmdPath, err := findQmd()
 	if err != nil {
-		return fmt.Errorf("qmd not found (checked node_modules and PATH): %w", err)
+		return fmt.Errorf("qmd not found (checked DUFFEL_QMD_PATH and vendored node_modules): %w", err)
 	}
 
 	cmd := exec.Command(qmdPath, "update")
@@ -486,7 +496,7 @@ func MapPaths(results []Result, storeRoot string) []Result {
 func EnsureCollection(name, dataDir string) error {
 	qmdPath, err := findQmd()
 	if err != nil {
-		return fmt.Errorf("qmd not found (checked node_modules and PATH): %w", err)
+		return fmt.Errorf("qmd not found (checked DUFFEL_QMD_PATH and vendored node_modules): %w", err)
 	}
 
 	absDataDir, err := filepath.Abs(dataDir)
