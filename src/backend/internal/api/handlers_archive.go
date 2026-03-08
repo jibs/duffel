@@ -7,7 +7,7 @@ import (
 	"duffel/src/backend/internal/storage"
 )
 
-func handleArchive(store *storage.Store) http.HandlerFunc {
+func handleArchive(store *storage.Store, onContentChanged func()) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		urlPath := extractPath(r)
 
@@ -32,12 +32,13 @@ func handleArchive(store *storage.Store) http.HandlerFunc {
 			writeError(w, http.StatusInternalServerError, err.Error(), urlPath)
 			return
 		}
+		triggerContentChanged(onContentChanged)
 
 		writeJSON(w, http.StatusOK, map[string]string{"status": "archived", "path": urlPath})
 	}
 }
 
-func handleUnarchive(store *storage.Store) http.HandlerFunc {
+func handleUnarchive(store *storage.Store, onContentChanged func()) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		urlPath := extractPath(r)
 
@@ -58,6 +59,7 @@ func handleUnarchive(store *storage.Store) http.HandlerFunc {
 			writeError(w, http.StatusInternalServerError, err.Error(), urlPath)
 			return
 		}
+		triggerContentChanged(onContentChanged)
 
 		writeJSON(w, http.StatusOK, map[string]string{"status": "unarchived", "path": urlPath})
 	}

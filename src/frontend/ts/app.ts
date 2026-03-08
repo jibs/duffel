@@ -6,6 +6,7 @@ import {
   createDir,
   fetchAgentSnippet,
   FileResponse,
+  RecommendedContent,
 } from "./api.js";
 import { loadTree, highlightActive } from "./browser.js";
 import { openEditor } from "./editor.js";
@@ -26,6 +27,8 @@ const views: Record<ViewName, HTMLElement> = {
 
 const breadcrumb = document.getElementById("breadcrumb")!;
 const fileRendered = document.getElementById("file-rendered")!;
+const fileRecommended = document.getElementById("file-recommended")!;
+const fileRecommendedList = document.getElementById("file-recommended-list")!;
 const dirListing = document.getElementById("dir-listing")!;
 const btnEdit = document.getElementById("btn-edit")!;
 const btnArchive = document.getElementById("btn-archive")!;
@@ -75,6 +78,7 @@ async function showFile(path: string): Promise<void> {
     updateBreadcrumb(path);
 
     if (file.isJournal) {
+      hideFileRecommendations();
       showJournal(path, file.content);
       showView("journal");
     } else {
@@ -100,6 +104,7 @@ async function showFile(path: string): Promise<void> {
       } else {
         fileRendered.textContent = file.content;
       }
+      renderFileRecommendations(path, file.recommended || []);
       showView("file");
     }
     highlightActive(path);
@@ -113,6 +118,7 @@ async function showDirectory(path: string): Promise<void> {
   try {
     const dir = await listDir(path);
     currentFile = null;
+    hideFileRecommendations();
     updateBreadcrumb(path);
 
     const entries = (dir.entries || []).sort((a, b) => {
@@ -172,6 +178,75 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function renderFileRecommendations(currentPath: string, recommendations: RecommendedContent[]): void {
+  fileRecommended.classList.remove("hidden");
+  fileRecommendedList.replaceChildren();
+
+  if (!recommendations || recommendations.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = "No recommendations available yet.";
+    fileRecommendedList.appendChild(empty);
+    return;
+  }
+
+  recommendations.forEach((item) => {
+    if (!item.path || item.path === currentPath) return;
+
+    const row = document.createElement("div");
+    row.className = "recommended-item";
+
+    const title = document.createElement("div");
+    title.className = "title";
+    title.textContent = item.title || item.path.split("/").pop() || item.path;
+
+    const path = document.createElement("div");
+    path.className = "path";
+    path.textContent = item.path;
+
+    const meta = document.createElement("div");
+    meta.className = "meta-row";
+    if (item.score != null) {
+      const score = document.createElement("span");
+      score.className = "score";
+      score.textContent = item.score.toFixed(2);
+      meta.appendChild(score);
+    }
+    if (item.modified_at) {
+      const date = document.createElement("span");
+      date.className = "date";
+      date.textContent = item.modified_at;
+      meta.appendChild(date);
+    }
+
+    const snippet = document.createElement("div");
+    snippet.className = "snippet";
+    snippet.textContent = item.snippet || "";
+
+    row.appendChild(title);
+    row.appendChild(path);
+    if (meta.children.length > 0) row.appendChild(meta);
+    row.appendChild(snippet);
+    row.addEventListener("click", () => {
+      window.location.hash = `#/${item.path}`;
+    });
+
+    fileRecommendedList.appendChild(row);
+  });
+
+  if (fileRecommendedList.children.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = "No recommendations available yet.";
+    fileRecommendedList.appendChild(empty);
+  }
+}
+
+function hideFileRecommendations(): void {
+  fileRecommended.classList.add("hidden");
+  fileRecommendedList.replaceChildren();
+}
+
 export function navigate(hash: string): void {
   window.location.hash = hash;
 }
@@ -188,6 +263,7 @@ async function handleRoute(): Promise<void> {
 
   // Check if path ends with ?edit
   if (path.endsWith("?edit")) {
+    hideFileRecommendations();
     const filePath = path.replace(/\?edit$/, "");
     try {
       const file = await readFile(filePath);

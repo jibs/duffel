@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"duffel/src/backend/internal/api"
@@ -16,13 +17,17 @@ import (
 )
 
 func setupTestServer(t *testing.T) (*httptest.Server, *storage.Store) {
+	return setupTestServerWithHook(t, nil)
+}
+
+func setupTestServerWithHook(t *testing.T, onContentChanged func()) (*httptest.Server, *storage.Store) {
 	t.Helper()
 	dir := t.TempDir()
 	store, err := storage.NewStore(dir)
 	if err != nil {
 		t.Fatalf("NewStore: %v", err)
 	}
-	router := api.NewRouter(store, func() *search.Searcher { return nil }, dir)
+	router := api.NewRouter(store, func() *search.Searcher { return nil }, onContentChanged, dir)
 	return httptest.NewServer(router), store
 }
 
@@ -54,6 +59,111 @@ func TestCreateAndReadFile(t *testing.T) {
 	json.NewDecoder(resp.Body).Decode(&file)
 	if file.Content != "# Hello\n\nWorld" {
 		t.Errorf("content = %q, want %q", file.Content, "# Hello\n\nWorld")
+	}
+}
+
+func TestReadFileIncludesRecommendedArray(t *testing.T) {
+	srv, _ := setupTestServer(t)
+	defer srv.Close()
+
+	req, _ := http.NewRequest("PUT", srv.URL+"/api/fs/notes/hello.md", strings.NewReader(`{"content":"# Hello\n\nWorld"}`))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	resp, err = http.Get(srv.URL + "/api/fs/notes/hello.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET status = %d, want 200", resp.StatusCode)
+	}
+
+	var payload map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	recommended, ok := payload["recommended"].([]any)
+	if !ok {
+		t.Fatalf("recommended type = %T, want []any", payload["recommended"])
+	}
+	if len(recommended) != 0 {
+		t.Fatalf("len(recommended) = %d, want 0 with nil searcher", len(recommended))
+	}
+}
+
+func TestContentMutationHooks(t *testing.T) {
+	var hookCalls atomic.Int32
+	srv, _ := setupTestServerWithHook(t, func() {
+		hookCalls.Add(1)
+	})
+	defer srv.Close()
+
+	t.Run("PUT triggers hook", func(t *testing.T) {
+		req, _ := http.NewRequest("PUT", srv.URL+"/api/fs/hook-put.md", strings.NewReader(`{"content":"put"}`))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d, want 200", resp.StatusCode)
+		}
+	})
+
+	t.Run("move triggers hook", func(t *testing.T) {
+		req, _ := http.NewRequest("PUT", srv.URL+"/api/fs/hook-move-src.md", strings.NewReader(`{"content":"move"}`))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("seed status = %d, want 200", resp.StatusCode)
+		}
+
+		resp, err = http.Post(srv.URL+"/api/move/hook-move-src.md", "application/json", strings.NewReader(`{"destination":"hook-move-dst.md"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("move status = %d, want 200", resp.StatusCode)
+		}
+	})
+
+	t.Run("journal append triggers hook", func(t *testing.T) {
+		resp, err := http.Post(srv.URL+"/api/journal/self/hook-journal.md", "application/json",
+			strings.NewReader(`{"content":"first"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("create journal status = %d, want 201", resp.StatusCode)
+		}
+
+		resp, err = http.Post(srv.URL+"/api/journal/self/hook-journal.md/append", "application/json",
+			strings.NewReader(`{"content":"second"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("append journal status = %d, want 200", resp.StatusCode)
+		}
+	})
+
+	if got := hookCalls.Load(); got < 5 {
+		t.Fatalf("hook calls = %d, want at least 5 (PUT + seed PUT + move + journal create + append)", got)
 	}
 }
 

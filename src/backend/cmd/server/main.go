@@ -50,7 +50,7 @@ func main() {
 	}
 
 	// Start background indexing; when done, open/reopen the searcher
-	if err := search.StartIndexing("duffel", func(err error) {
+	reindexer := search.NewReindexScheduler("duffel", func(err error) {
 		if err != nil {
 			log.Printf("qmd: indexing failed: %v", err)
 			return
@@ -66,14 +66,20 @@ func main() {
 			_ = old.Close()
 		}
 		log.Printf("qmd: search enabled (using %s)", "~/.cache/qmd/index.sqlite")
-	}); err != nil {
+	})
+	if err := reindexer.Trigger(); err != nil {
 		log.Printf("qmd: background indexing not started: %v", err)
 	} else {
 		log.Printf("qmd: background indexing started")
 	}
 
 	getSearcher := func() *search.Searcher { return searcherPtr.Load() }
-	router := api.NewRouter(store, getSearcher, cfg.FrontendDir)
+	onContentChanged := func() {
+		if err := reindexer.Trigger(); err != nil {
+			log.Printf("qmd: background indexing not started after content mutation: %v", err)
+		}
+	}
+	router := api.NewRouter(store, getSearcher, onContentChanged, cfg.FrontendDir)
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	log.Printf("duffel starting (data: %s, frontend: %s)", cfg.DataDir, cfg.FrontendDir)

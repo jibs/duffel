@@ -12,9 +12,12 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-func NewRouter(store *storage.Store, getSearcher func() *search.Searcher, frontendDir string) http.Handler {
+func NewRouter(store *storage.Store, getSearcher func() *search.Searcher, onContentChanged func(), frontendDir string) http.Handler {
 	r := chi.NewRouter()
 	allowedOrigins := parseAllowedOrigins(os.Getenv("DUFFEL_ALLOWED_ORIGINS"))
+	if onContentChanged == nil {
+		onContentChanged = func() {}
+	}
 
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
@@ -23,17 +26,17 @@ func NewRouter(store *storage.Store, getSearcher func() *search.Searcher, fronte
 
 	// API routes
 	r.Route("/api", func(r chi.Router) {
-		r.Get("/fs/*", handleFSGet(store))
-		r.Put("/fs/*", handleFSPut(store))
-		r.Delete("/fs/*", handleFSDelete(store))
+		r.Get("/fs/*", handleFSGet(store, getSearcher))
+		r.Put("/fs/*", handleFSPut(store, onContentChanged))
+		r.Delete("/fs/*", handleFSDelete(store, onContentChanged))
 		r.Post("/fs/*", handleFSPost(store))
 
-		r.Post("/move/*", handleFSMove(store))
+		r.Post("/move/*", handleFSMove(store, onContentChanged))
 
-		r.Post("/archive/*", handleArchive(store))
-		r.Post("/unarchive/*", handleUnarchive(store))
+		r.Post("/archive/*", handleArchive(store, onContentChanged))
+		r.Post("/unarchive/*", handleUnarchive(store, onContentChanged))
 
-		r.Post("/journal/*", handleJournal(store))
+		r.Post("/journal/*", handleJournal(store, onContentChanged))
 
 		r.Get("/search", handleSearch(store, getSearcher))
 

@@ -9,22 +9,22 @@ import (
 	"duffel/src/backend/internal/storage"
 )
 
-func handleJournal(store *storage.Store) http.HandlerFunc {
+func handleJournal(store *storage.Store, onContentChanged func()) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		urlPath := extractPath(r)
 
 		// Check if this is an append request (path ends with /append)
 		if basePath, ok := strings.CutSuffix(urlPath, "/append"); ok {
-			handleJournalAppend(store, w, r, basePath)
+			handleJournalAppend(store, onContentChanged, w, r, basePath)
 			return
 		}
 
 		// Otherwise it's a create request
-		handleJournalCreate(store, w, r, urlPath)
+		handleJournalCreate(store, onContentChanged, w, r, urlPath)
 	}
 }
 
-func handleJournalCreate(store *storage.Store, w http.ResponseWriter, r *http.Request, urlPath string) {
+func handleJournalCreate(store *storage.Store, onContentChanged func(), w http.ResponseWriter, r *http.Request, urlPath string) {
 	var body struct {
 		Content string `json:"content"`
 	}
@@ -42,6 +42,7 @@ func handleJournalCreate(store *storage.Store, w http.ResponseWriter, r *http.Re
 		writeError(w, http.StatusInternalServerError, err.Error(), urlPath)
 		return
 	}
+	triggerContentChanged(onContentChanged)
 
 	file, err := store.Read(urlPath)
 	if err != nil {
@@ -51,7 +52,7 @@ func handleJournalCreate(store *storage.Store, w http.ResponseWriter, r *http.Re
 	writeJSON(w, http.StatusCreated, file)
 }
 
-func handleJournalAppend(store *storage.Store, w http.ResponseWriter, r *http.Request, urlPath string) {
+func handleJournalAppend(store *storage.Store, onContentChanged func(), w http.ResponseWriter, r *http.Request, urlPath string) {
 	var body struct {
 		Content string `json:"content"`
 	}
@@ -78,6 +79,7 @@ func handleJournalAppend(store *storage.Store, w http.ResponseWriter, r *http.Re
 		writeError(w, http.StatusInternalServerError, err.Error(), urlPath)
 		return
 	}
+	triggerContentChanged(onContentChanged)
 
 	file, err := store.Read(urlPath)
 	if err != nil {

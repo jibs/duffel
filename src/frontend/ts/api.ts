@@ -13,6 +13,15 @@ export interface FileResponse {
   path: string;
   content: string;
   isJournal: boolean;
+  recommended: RecommendedContent[];
+}
+
+export interface RecommendedContent {
+  path: string;
+  title: string;
+  snippet: string;
+  score: number;
+  modified_at: string;
 }
 
 export interface SearchResult {
