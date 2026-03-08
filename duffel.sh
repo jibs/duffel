@@ -2,7 +2,7 @@
 set -euo pipefail
 
 DUFFEL_URL="${DUFFEL_URL:-http://localhost:4386}"
-DUFFEL_SCRIPT_VERSION="3"
+DUFFEL_SCRIPT_VERSION="4"
 
 check_version() {
   local server_version
@@ -37,13 +37,14 @@ Commands:
   search <query> [options]          Search notes
     -n <limit>                     Max results (default 20, max 100)
     -o <offset>                    Skip N results (pagination)
-    -s <sort>                      Sort by: score (default) or date
-    -p <prefix>                    Filter by path prefix
-    --after <date>                 Only docs modified after ISO date
-    --before <date>                Only docs modified before ISO date
-    --fields <csv>                 Projection: path,title,snippet,score,modified_at
+    --intent <text>                Optional disambiguation intent
+    -C, --candidate-limit <num>    Max candidates sent to reranker
+    --min-score <num>              Minimum score threshold
+    --explain                      Include retrieval score traces
+    --fields <csv>                 Projection: path,title,snippet,score,modified_at,explain
     --brief                        Equivalent to --fields path,title,modified_at,score
     --paths                        Equivalent to --fields path
+    legacy flags removed: -s, -p, --after, --before
 USAGE
   exit 1
 }
@@ -211,19 +212,41 @@ cmd_journal_append() {
 }
 
 cmd_search() {
-  local limit="" offset="" sort="" prefix="" after="" before="" fields=""
+  local limit="" offset="" intent="" candidate_limit="" min_score="" explain="" fields=""
   local query_parts=()
   while [ $# -gt 0 ]; do
     case "$1" in
-      -n)     shift; limit="$1" ;;
-      -o)     shift; offset="$1" ;;
-      -s)     shift; sort="$1" ;;
-      -p)     shift; prefix="$1" ;;
-      --after)  shift; after="$1" ;;
-      --before) shift; before="$1" ;;
-      --fields) shift; fields="$1" ;;
+      -n)
+        [ $# -lt 2 ] && { echo "error: -n requires a value"; return 1; }
+        shift; limit="$1"
+        ;;
+      -o)
+        [ $# -lt 2 ] && { echo "error: -o requires a value"; return 1; }
+        shift; offset="$1"
+        ;;
+      --intent)
+        [ $# -lt 2 ] && { echo "error: --intent requires a value"; return 1; }
+        shift; intent="$1"
+        ;;
+      -C|--candidate-limit)
+        [ $# -lt 2 ] && { echo "error: $1 requires a value"; return 1; }
+        shift; candidate_limit="$1"
+        ;;
+      --min-score)
+        [ $# -lt 2 ] && { echo "error: --min-score requires a value"; return 1; }
+        shift; min_score="$1"
+        ;;
+      --explain) explain="true" ;;
+      --fields)
+        [ $# -lt 2 ] && { echo "error: --fields requires a value"; return 1; }
+        shift; fields="$1"
+        ;;
       --brief) fields="path,title,modified_at,score" ;;
       --paths) fields="path" ;;
+      -s|-p|--after|--before)
+        echo "error: $1 is no longer supported. Use --intent, -C/--candidate-limit, --min-score, --explain, --fields."
+        return 1
+        ;;
       *)      query_parts+=("$1") ;;
     esac
     shift
@@ -236,10 +259,10 @@ cmd_search() {
   local curl_args=(-s -G --data-urlencode "q=${query}")
   [ -n "$limit" ]  && curl_args+=(--data-urlencode "limit=${limit}")
   [ -n "$offset" ] && curl_args+=(--data-urlencode "offset=${offset}")
-  [ -n "$sort" ]   && curl_args+=(--data-urlencode "sort=${sort}")
-  [ -n "$prefix" ] && curl_args+=(--data-urlencode "prefix=${prefix}")
-  [ -n "$after" ]  && curl_args+=(--data-urlencode "after=${after}")
-  [ -n "$before" ] && curl_args+=(--data-urlencode "before=${before}")
+  [ -n "$intent" ] && curl_args+=(--data-urlencode "intent=${intent}")
+  [ -n "$candidate_limit" ] && curl_args+=(--data-urlencode "candidate_limit=${candidate_limit}")
+  [ -n "$min_score" ] && curl_args+=(--data-urlencode "min_score=${min_score}")
+  [ -n "$explain" ] && curl_args+=(--data-urlencode "explain=${explain}")
   [ -n "$fields" ] && curl_args+=(--data-urlencode "fields=${fields}")
   local response
   response=$(curl "${curl_args[@]}" "${DUFFEL_URL}/api/search")

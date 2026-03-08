@@ -32,8 +32,9 @@ Default config:
 Use compact retrieval before reading full notes:
 
 ```bash
-./duffel.sh find "auth session cache" -p projects/
-./duffel.sh search "auth OR session OR cache*" --paths -p projects/ -n 30 -o 0
+./duffel.sh find "auth session cache"
+./duffel.sh search "performance" --intent "software optimization" --brief -n 8
+./duffel.sh search "auth OR session OR cache*" --paths -n 30 -o 0
 ./duffel.sh read projects/auth/session-design.md
 ./duffel.sh journal append self/journal.md "API: updated session invalidation behavior"
 ```
@@ -43,7 +44,7 @@ Tips:
 - Prefer `find` before `ls`
 - Start with small limits (`-n 5` to `-n 8`)
 - Use `--paths` or `--brief` before full payloads
-- Scope with `-p <prefix>`, `--after`, and `--before`
+- Add `--intent` when a query is ambiguous
 
 ## API Summary
 
@@ -63,7 +64,8 @@ All routes are under `/api`. Responses are JSON except `/api/agent/*`.
   - `POST /api/journal/*/append`
 - Search:
   - `GET /api/search?q=<query>`
-  - Options: `limit`, `offset`, `sort`, `prefix`, `after`, `before`, `fields`
+  - Options: `limit`, `offset`, `intent`, `candidate_limit`, `min_score`, `explain`, `fields`
+  - Legacy filters rejected with `400`: `sort`, `prefix`, `after`, `before`
 - Agent:
   - `GET /api/agent/script`
   - `GET /api/agent/version`
@@ -94,9 +96,10 @@ Core commands:
 
 Search options:
 
-- `-n`, `-o`, `-s`, `-p`
-- `--after`, `--before`
+- `-n`, `-o`, `--intent`
+- `-C`/`--candidate-limit`, `--min-score`, `--explain`
 - `--fields`, `--brief`, `--paths`
+- Legacy flags removed: `-s`, `-p`, `--after`, `--before`
 
 ## Security Boundaries
 

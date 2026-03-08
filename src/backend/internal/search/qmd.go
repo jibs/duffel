@@ -1,40 +1,88 @@
 package search
 
 import (
+	"bytes"
+	"context"
 	"database/sql"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
 
-// Result represents a single search result from the qmd FTS index.
+const (
+	defaultCollection   = "duffel"
+	defaultLimit        = 20
+	maxLimit            = 100
+	defaultQueryTimeout = 12 * time.Second
+)
+
+// Result represents a single search result from qmd.
 type Result struct {
-	Path       string  `json:"path"`
-	Title      string  `json:"title"`
-	Snippet    string  `json:"snippet"`
-	Score      float64 `json:"score"`
-	ModifiedAt string  `json:"modified_at"`
+	Path       string          `json:"path"`
+	Title      string          `json:"title"`
+	Snippet    string          `json:"snippet"`
+	Score      float64         `json:"score"`
+	ModifiedAt string          `json:"modified_at"`
+	Explain    json.RawMessage `json:"explain,omitempty"`
 }
 
 // SearchOptions configures a search query.
 type SearchOptions struct {
-	Query      string
-	Collection string
-	Limit      int
-	Offset     int
-	Prefix     string
-	Sort       string // "score" or "date"
-	After      string // ISO date, e.g. "2026-01-01"
-	Before     string // ISO date, e.g. "2026-12-31"
+	Query          string
+	Collection     string
+	Limit          int
+	Offset         int
+	Intent         string
+	CandidateLimit int
+	MinScore       float64
+	Explain        bool
 }
 
-// Searcher queries the qmd SQLite/FTS5 database directly.
+// HybridSearchError indicates why hybrid qmd query execution failed.
+type HybridSearchError struct {
+	Reason string
+	Err    error
+	Stderr string
+}
+
+func (e *HybridSearchError) Error() string {
+	if e == nil {
+		return "hybrid search failed"
+	}
+	msg := "hybrid search failed"
+	if e.Reason != "" {
+		msg += " (" + e.Reason + ")"
+	}
+	if e.Err != nil {
+		msg += ": " + e.Err.Error()
+	}
+	if e.Stderr != "" {
+		msg += "; stderr: " + e.Stderr
+	}
+	return msg
+}
+
+func (e *HybridSearchError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
+// Searcher queries qmd via CLI (hybrid) and falls back to direct SQLite BM25.
 type Searcher struct {
-	db *sql.DB
+	db           *sql.DB
+	findQmd      func() (string, error)
+	runQmd       func(ctx context.Context, qmdPath string, args []string) ([]byte, []byte, error)
+	queryTimeout time.Duration
 }
 
 // NewSearcher opens the qmd index database read-only.
@@ -61,21 +109,277 @@ func NewSearcher() (*Searcher, error) {
 		return nil, fmt.Errorf("qmd database not accessible: %w", err)
 	}
 
-	return &Searcher{db: db}, nil
+	return &Searcher{
+		db:           db,
+		findQmd:      findQmd,
+		runQmd:       runQmdCommand,
+		queryTimeout: defaultQueryTimeout,
+	}, nil
 }
 
-// Search runs an FTS5 BM25 query against the qmd index.
+func (s *Searcher) ensureDefaults() {
+	if s.findQmd == nil {
+		s.findQmd = findQmd
+	}
+	if s.runQmd == nil {
+		s.runQmd = runQmdCommand
+	}
+	if s.queryTimeout <= 0 {
+		s.queryTimeout = defaultQueryTimeout
+	}
+}
+
+// Search runs hybrid qmd search by default and falls back to BM25 on failure.
 func (s *Searcher) Search(opts SearchOptions) ([]Result, error) {
-	if opts.Limit <= 0 {
-		opts.Limit = 20
-	}
-	if opts.Limit > 100 {
-		opts.Limit = 100
-	}
-	if opts.Sort == "" {
-		opts.Sort = "score"
+	s.ensureDefaults()
+	opts = normalizeSearchOptions(opts)
+
+	hybridResults, err := s.searchHybrid(opts)
+	if err == nil {
+		return hybridResults, nil
 	}
 
+	bm25Results, bm25Err := s.searchBM25(opts)
+	if bm25Err == nil {
+		return bm25Results, nil
+	}
+
+	return nil, fmt.Errorf("search failed: hybrid error: %w; bm25 error: %v", err, bm25Err)
+}
+
+func normalizeSearchOptions(opts SearchOptions) SearchOptions {
+	opts.Query = strings.TrimSpace(opts.Query)
+	if opts.Collection == "" {
+		opts.Collection = defaultCollection
+	}
+	if opts.Limit <= 0 {
+		opts.Limit = defaultLimit
+	}
+	if opts.Limit > maxLimit {
+		opts.Limit = maxLimit
+	}
+	if opts.Offset < 0 {
+		opts.Offset = 0
+	}
+	if opts.CandidateLimit < 0 {
+		opts.CandidateLimit = 0
+	}
+	if opts.MinScore < 0 {
+		opts.MinScore = 0
+	}
+	return opts
+}
+
+func (s *Searcher) searchHybrid(opts SearchOptions) ([]Result, error) {
+	if opts.Query == "" {
+		return nil, &HybridSearchError{Reason: "invalid_query", Err: errors.New("query is required")}
+	}
+
+	qmdPath, err := s.findQmd()
+	if err != nil {
+		return nil, &HybridSearchError{Reason: "qmd_not_found", Err: err}
+	}
+
+	fetchLimit := opts.Offset + opts.Limit
+	if fetchLimit < opts.Limit {
+		fetchLimit = opts.Limit
+	}
+	args := buildHybridArgs(opts, fetchLimit)
+
+	ctx, cancel := context.WithTimeout(context.Background(), s.queryTimeout)
+	defer cancel()
+
+	stdout, stderr, err := s.runQmd(ctx, qmdPath, args)
+	if err != nil {
+		reason := "qmd_exec_failed"
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			reason = "timeout"
+		}
+		return nil, &HybridSearchError{Reason: reason, Err: err, Stderr: strings.TrimSpace(string(stderr))}
+	}
+
+	results, err := parseHybridResults(stdout, opts.Collection)
+	if err != nil {
+		return nil, &HybridSearchError{Reason: "parse_failed", Err: err}
+	}
+
+	if err := s.populateModifiedAt(opts.Collection, results); err != nil {
+		return nil, &HybridSearchError{Reason: "metadata_lookup_failed", Err: err}
+	}
+
+	start := opts.Offset
+	if start >= len(results) {
+		return []Result{}, nil
+	}
+	end := start + opts.Limit
+	if end > len(results) {
+		end = len(results)
+	}
+	return results[start:end], nil
+}
+
+func buildHybridArgs(opts SearchOptions, fetchLimit int) []string {
+	args := []string{"query", opts.Query, "--json", "-n", strconv.Itoa(fetchLimit)}
+	if opts.Collection != "" {
+		args = append(args, "-c", opts.Collection)
+	}
+	if strings.TrimSpace(opts.Intent) != "" {
+		args = append(args, "--intent", strings.TrimSpace(opts.Intent))
+	}
+	if opts.CandidateLimit > 0 {
+		args = append(args, "-C", strconv.Itoa(opts.CandidateLimit))
+	}
+	if opts.MinScore > 0 {
+		args = append(args, "--min-score", strconv.FormatFloat(opts.MinScore, 'f', -1, 64))
+	}
+	if opts.Explain {
+		args = append(args, "--explain")
+	}
+	return args
+}
+
+func runQmdCommand(ctx context.Context, qmdPath string, args []string) ([]byte, []byte, error) {
+	cmd := exec.CommandContext(ctx, qmdPath, args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	stdout, err := cmd.Output()
+	return stdout, stderr.Bytes(), err
+}
+
+type qmdHybridRow struct {
+	File    string          `json:"file"`
+	Title   string          `json:"title"`
+	Snippet string          `json:"snippet"`
+	Score   float64         `json:"score"`
+	Explain json.RawMessage `json:"explain"`
+}
+
+func parseHybridResults(raw []byte, collection string) ([]Result, error) {
+	var rows []qmdHybridRow
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		return nil, fmt.Errorf("failed to parse qmd JSON output: %w", err)
+	}
+
+	results := make([]Result, 0, len(rows))
+	for _, row := range rows {
+		path := normalizeQmdPath(row.File, collection)
+		explain := compactJSON(row.Explain)
+		results = append(results, Result{
+			Path:    path,
+			Title:   row.Title,
+			Snippet: row.Snippet,
+			Score:   row.Score,
+			Explain: explain,
+		})
+	}
+	return results, nil
+}
+
+func normalizeQmdPath(rawPath, collection string) string {
+	path := strings.TrimSpace(rawPath)
+	const qmdPrefix = "qmd://"
+	if !strings.HasPrefix(path, qmdPrefix) {
+		return path
+	}
+	rest := strings.TrimPrefix(path, qmdPrefix)
+	parts := strings.SplitN(rest, "/", 2)
+	if len(parts) != 2 {
+		return path
+	}
+	coll := parts[0]
+	rel := strings.TrimPrefix(parts[1], "/")
+	if rel == "" {
+		return path
+	}
+	if collection == "" || coll == collection {
+		return rel
+	}
+	return rel
+}
+
+func compactJSON(raw json.RawMessage) json.RawMessage {
+	if len(raw) == 0 {
+		return nil
+	}
+	var compacted bytes.Buffer
+	if err := json.Compact(&compacted, raw); err != nil {
+		cloned := make([]byte, len(raw))
+		copy(cloned, raw)
+		return json.RawMessage(cloned)
+	}
+	cloned := make([]byte, compacted.Len())
+	copy(cloned, compacted.Bytes())
+	return json.RawMessage(cloned)
+}
+
+func (s *Searcher) populateModifiedAt(collection string, results []Result) error {
+	if len(results) == 0 {
+		return nil
+	}
+
+	paths := make([]string, 0, len(results))
+	seen := make(map[string]struct{}, len(results))
+	for _, r := range results {
+		if r.Path == "" {
+			continue
+		}
+		if strings.HasPrefix(r.Path, "qmd://") {
+			continue
+		}
+		if _, ok := seen[r.Path]; ok {
+			continue
+		}
+		seen[r.Path] = struct{}{}
+		paths = append(paths, r.Path)
+	}
+	if len(paths) == 0 {
+		return nil
+	}
+
+	placeholders := make([]string, 0, len(paths))
+	args := make([]any, 0, len(paths)+1)
+	args = append(args, collection)
+	for _, path := range paths {
+		placeholders = append(placeholders, "?")
+		args = append(args, path)
+	}
+
+	query := `
+		SELECT path, COALESCE(modified_at, '') as modified_at
+		FROM documents
+		WHERE collection = ?
+		  AND active = 1
+		  AND path IN (` + strings.Join(placeholders, ",") + `)`
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return fmt.Errorf("failed to look up modified timestamps: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	modifiedByPath := make(map[string]string, len(paths))
+	for rows.Next() {
+		var path, modifiedAt string
+		if err := rows.Scan(&path, &modifiedAt); err != nil {
+			return fmt.Errorf("failed to scan modified timestamp: %w", err)
+		}
+		modifiedByPath[path] = modifiedAt
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("failed while reading modified timestamps: %w", err)
+	}
+
+	for i := range results {
+		if modifiedAt, ok := modifiedByPath[results[i].Path]; ok {
+			results[i].ModifiedAt = modifiedAt
+		}
+	}
+
+	return nil
+}
+
+// searchBM25 runs an FTS5 BM25 query against the qmd index.
+func (s *Searcher) searchBM25(opts SearchOptions) ([]Result, error) {
 	query := `
 		SELECT d.path, d.title,
 		       snippet(documents_fts, 2, '<mark>', '</mark>', '...', 32) as snippet,
@@ -85,38 +389,17 @@ func (s *Searcher) Search(opts SearchOptions) ([]Result, error) {
 		JOIN documents d ON d.rowid = documents_fts.rowid
 		WHERE documents_fts MATCH ?
 		  AND d.collection = ?
-		  AND d.active = 1`
-	args := []any{opts.Query, opts.Collection}
+		  AND d.active = 1
+		ORDER BY score ASC
+		LIMIT ? OFFSET ?`
 
-	if opts.Prefix != "" {
-		query += "\n		  AND d.path LIKE ? || '%'"
-		args = append(args, opts.Prefix)
-	}
-	if opts.After != "" {
-		query += "\n		  AND d.modified_at >= ?"
-		args = append(args, opts.After)
-	}
-	if opts.Before != "" {
-		query += "\n		  AND d.modified_at < ?"
-		args = append(args, opts.Before)
-	}
-
-	if opts.Sort == "date" {
-		query += "\n		ORDER BY d.modified_at DESC"
-	} else {
-		query += "\n		ORDER BY score ASC"
-	}
-
-	query += "\n		LIMIT ? OFFSET ?"
-	args = append(args, opts.Limit, opts.Offset)
-
-	rows, err := s.db.Query(query, args...)
+	rows, err := s.db.Query(query, opts.Query, opts.Collection, opts.Limit, opts.Offset)
 	if err != nil {
 		return nil, fmt.Errorf("search query failed: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	var results []Result
+	results := make([]Result, 0, opts.Limit)
 	for rows.Next() {
 		var r Result
 		if err := rows.Scan(&r.Path, &r.Title, &r.Snippet, &r.Score, &r.ModifiedAt); err != nil {
@@ -183,6 +466,12 @@ func MapPaths(results []Result, storeRoot string) []Result {
 	mapped := make([]Result, len(results))
 	for i, r := range results {
 		mapped[i] = r
+
+		if strings.HasPrefix(r.Path, "qmd://") {
+			mapped[i].Path = normalizeQmdPath(r.Path, "")
+			continue
+		}
+
 		clean := filepath.Clean(r.Path)
 		if rel, ok := strings.CutPrefix(clean, root); ok {
 			mapped[i].Path = strings.TrimPrefix(rel, string(filepath.Separator))

@@ -3,10 +3,6 @@ import { search, SearchResult, SearchOptions } from "./api.js";
 const sidebarInput = document.getElementById("search-input") as HTMLInputElement;
 const queryInput = document.getElementById("search-query-input") as HTMLInputElement;
 const searchResults = document.getElementById("search-results")!;
-const sortSelect = document.getElementById("search-sort") as HTMLSelectElement;
-const prefixInput = document.getElementById("search-prefix") as HTMLInputElement;
-const afterInput = document.getElementById("search-after") as HTMLInputElement;
-const beforeInput = document.getElementById("search-before") as HTMLInputElement;
 const limitSelect = document.getElementById("search-limit") as HTMLSelectElement;
 const btnSearch = document.getElementById("btn-search")!;
 const btnPrev = document.getElementById("btn-search-prev") as HTMLButtonElement;
@@ -14,47 +10,26 @@ const btnNext = document.getElementById("btn-search-next") as HTMLButtonElement;
 const showingLabel = document.getElementById("search-showing")!;
 const pagination = document.getElementById("search-pagination")!;
 
-let debounceTimer: number | null = null;
 let currentQuery = "";
 let currentOffset = 0;
 let lastResultCount = 0;
 
-// Get the current project (top-level folder) from the URL hash.
-function getCurrentPrefix(): string {
-  const hash = window.location.hash || "#/";
-  const path = hash.replace(/^#\/?/, "").replace(/\?.*$/, "");
-  if (!path) return "";
-  const first = path.split("/")[0];
-  return first ? first + "/" : "";
-}
-
 function getOpts(): SearchOptions {
   return {
-    prefix: prefixInput.value.trim() || undefined,
     limit: parseInt(limitSelect.value, 10),
     offset: currentOffset,
-    sort: sortSelect.value || undefined,
-    after: afterInput.value || undefined,
-    before: beforeInput.value || undefined,
   };
 }
 
-// Sidebar input: debounce → open search view
-sidebarInput.addEventListener("input", () => {
-  if (debounceTimer !== null) clearTimeout(debounceTimer);
-  const query = sidebarInput.value.trim();
-  if (!query) {
-    hideSearch();
-    return;
-  }
-  debounceTimer = window.setTimeout(() => openSearch(query), 300);
-});
-
+// Sidebar input: submit with Enter to avoid expensive per-keystroke hybrid queries
 sidebarInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") {
-    if (debounceTimer !== null) clearTimeout(debounceTimer);
     const query = sidebarInput.value.trim();
-    if (query) openSearch(query);
+    if (query) {
+      openSearch(query);
+    } else {
+      hideSearch();
+    }
   }
 });
 
@@ -62,10 +37,6 @@ sidebarInput.addEventListener("keydown", (e) => {
 function openSearch(query: string): void {
   showSearch();
   queryInput.value = query;
-  // Auto-fill prefix from URL hash if prefix field is empty
-  if (!prefixInput.value.trim()) {
-    prefixInput.value = getCurrentPrefix();
-  }
   currentOffset = 0;
   runSearch(query);
 }
@@ -89,16 +60,13 @@ queryInput.addEventListener("keydown", (e) => {
   }
 });
 
-// Filter changes reset offset and re-run
-for (const el of [sortSelect, prefixInput, afterInput, beforeInput, limitSelect]) {
-  el.addEventListener("change", () => {
-    const query = queryInput.value.trim();
-    if (query) {
-      currentOffset = 0;
-      runSearch(query);
-    }
-  });
-}
+limitSelect.addEventListener("change", () => {
+  const query = queryInput.value.trim();
+  if (query) {
+    currentOffset = 0;
+    runSearch(query);
+  }
+});
 
 // Pagination
 btnPrev.addEventListener("click", () => {
@@ -147,9 +115,7 @@ function renderResults(data: SearchResult[]): void {
   searchResults.replaceChildren();
 
   if (data.length === 0) {
-    const prefix = prefixInput.value.trim();
-    const scope = prefix ? ` in ${prefix.replace(/\/$/, "")}` : "";
-    renderStatus(`No results found${scope}.`);
+    renderStatus("No results found.");
     return;
   }
 

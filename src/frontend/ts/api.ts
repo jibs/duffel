@@ -23,15 +23,16 @@ export interface SearchResult {
   content: string;
   score: number;
   modified_at: string;
+  explain?: unknown;
 }
 
 export interface SearchOptions {
-  prefix?: string;
   limit?: number;
   offset?: number;
-  sort?: string;
-  after?: string;
-  before?: string;
+  intent?: string;
+  candidate_limit?: number;
+  min_score?: number;
+  explain?: boolean;
 }
 
 const BASE = "/api";
@@ -96,12 +97,12 @@ export function appendJournal(path: string, content: string): Promise<void> {
 
 export function search(query: string, opts: SearchOptions = {}): Promise<SearchResult[]> {
   const params = new URLSearchParams({ q: query });
-  if (opts.prefix) params.set("prefix", opts.prefix);
   if (opts.limit != null) params.set("limit", String(opts.limit));
   if (opts.offset != null) params.set("offset", String(opts.offset));
-  if (opts.sort) params.set("sort", opts.sort);
-  if (opts.after) params.set("after", opts.after);
-  if (opts.before) params.set("before", opts.before);
+  if (opts.intent) params.set("intent", opts.intent);
+  if (opts.candidate_limit != null) params.set("candidate_limit", String(opts.candidate_limit));
+  if (opts.min_score != null) params.set("min_score", String(opts.min_score));
+  if (opts.explain != null) params.set("explain", String(opts.explain));
   return request<SearchResult[]>("GET", `/search?${params.toString()}`);
 }
 

@@ -851,6 +851,44 @@ func TestSearchEmptyQuery(t *testing.T) {
 	}
 }
 
+func TestSearchLegacyParamsRejected(t *testing.T) {
+	srv, _ := setupTestServer(t)
+	defer srv.Close()
+
+	legacy := []string{
+		"/api/search?q=test&sort=date",
+		"/api/search?q=test&prefix=notes/",
+		"/api/search?q=test&after=2026-01-01",
+		"/api/search?q=test&before=2026-01-01",
+	}
+
+	for _, path := range legacy {
+		resp, err := http.Get(srv.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Fatalf("search path %q status = %d, want 400", path, resp.StatusCode)
+		}
+	}
+}
+
+func TestSearchHybridParamsAccepted(t *testing.T) {
+	srv, _ := setupTestServer(t)
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/api/search?q=test&intent=notes&candidate_limit=40&min_score=0.2&explain=true&limit=10&offset=0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	// searcher is nil in tests; this verifies the params are accepted by validation.
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("search status = %d, want 503", resp.StatusCode)
+	}
+}
+
 func TestPutInvalidJSON(t *testing.T) {
 	srv, _ := setupTestServer(t)
 	defer srv.Close()

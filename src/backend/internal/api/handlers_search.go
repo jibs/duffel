@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -12,12 +13,7 @@ import (
 
 func handleSearch(store *storage.Store, getSearcher func() *search.Searcher) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		query := r.URL.Query().Get("q")
-		if query == "" {
-			writeError(w, http.StatusBadRequest, "query parameter 'q' is required", "")
-			return
-		}
-		fields, err := parseSearchFields(r.URL.Query().Get("fields"))
+		opts, fields, err := parseSearchRequest(r.URL.Query())
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err.Error(), "")
 			return
@@ -27,36 +23,6 @@ func handleSearch(store *storage.Store, getSearcher func() *search.Searcher) htt
 		if searcher == nil {
 			writeError(w, http.StatusServiceUnavailable, "search is unavailable — qmd has not indexed yet", "")
 			return
-		}
-
-		limit := 20
-		if v := r.URL.Query().Get("limit"); v != "" {
-			if n, err := strconv.Atoi(v); err == nil && n > 0 {
-				limit = n
-			}
-		}
-
-		offset := 0
-		if v := r.URL.Query().Get("offset"); v != "" {
-			if n, err := strconv.Atoi(v); err == nil && n >= 0 {
-				offset = n
-			}
-		}
-
-		sort := r.URL.Query().Get("sort")
-		if sort != "date" {
-			sort = "score"
-		}
-
-		opts := search.SearchOptions{
-			Query:      query,
-			Collection: "duffel",
-			Limit:      limit,
-			Offset:     offset,
-			Prefix:     r.URL.Query().Get("prefix"),
-			Sort:       sort,
-			After:      r.URL.Query().Get("after"),
-			Before:     r.URL.Query().Get("before"),
 		}
 
 		results, err := searcher.Search(opts)
@@ -77,6 +43,89 @@ func handleSearch(store *storage.Store, getSearcher func() *search.Searcher) htt
 	}
 }
 
+func parseSearchRequest(params url.Values) (search.SearchOptions, []string, error) {
+	if err := rejectLegacySearchParams(params); err != nil {
+		return search.SearchOptions{}, nil, err
+	}
+
+	query := strings.TrimSpace(params.Get("q"))
+	if query == "" {
+		return search.SearchOptions{}, nil, fmt.Errorf("query parameter 'q' is required")
+	}
+
+	fields, err := parseSearchFields(params.Get("fields"))
+	if err != nil {
+		return search.SearchOptions{}, nil, err
+	}
+
+	limit := 20
+	if raw := strings.TrimSpace(params.Get("limit")); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n <= 0 {
+			return search.SearchOptions{}, nil, fmt.Errorf("invalid limit parameter: must be a positive integer")
+		}
+		limit = n
+	}
+
+	offset := 0
+	if raw := strings.TrimSpace(params.Get("offset")); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 0 {
+			return search.SearchOptions{}, nil, fmt.Errorf("invalid offset parameter: must be a non-negative integer")
+		}
+		offset = n
+	}
+
+	candidateLimit := 0
+	if raw := strings.TrimSpace(params.Get("candidate_limit")); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n <= 0 {
+			return search.SearchOptions{}, nil, fmt.Errorf("invalid candidate_limit parameter: must be a positive integer")
+		}
+		candidateLimit = n
+	}
+
+	minScore := 0.0
+	if raw := strings.TrimSpace(params.Get("min_score")); raw != "" {
+		n, err := strconv.ParseFloat(raw, 64)
+		if err != nil || n < 0 {
+			return search.SearchOptions{}, nil, fmt.Errorf("invalid min_score parameter: must be a non-negative number")
+		}
+		minScore = n
+	}
+
+	explain := false
+	if raw := strings.TrimSpace(params.Get("explain")); raw != "" {
+		b, err := strconv.ParseBool(raw)
+		if err != nil {
+			return search.SearchOptions{}, nil, fmt.Errorf("invalid explain parameter: must be true or false")
+		}
+		explain = b
+	}
+
+	opts := search.SearchOptions{
+		Query:          query,
+		Collection:     "duffel",
+		Limit:          limit,
+		Offset:         offset,
+		Intent:         strings.TrimSpace(params.Get("intent")),
+		CandidateLimit: candidateLimit,
+		MinScore:       minScore,
+		Explain:        explain,
+	}
+	return opts, fields, nil
+}
+
+func rejectLegacySearchParams(params url.Values) error {
+	legacy := []string{"sort", "prefix", "after", "before"}
+	for _, key := range legacy {
+		if _, ok := params[key]; ok {
+			return fmt.Errorf("unsupported search parameter %q: legacy filters were removed", key)
+		}
+	}
+	return nil
+}
+
 func parseSearchFields(raw string) ([]string, error) {
 	if strings.TrimSpace(raw) == "" {
 		return nil, nil
@@ -88,6 +137,7 @@ func parseSearchFields(raw string) ([]string, error) {
 		"snippet":     {},
 		"score":       {},
 		"modified_at": {},
+		"explain":     {},
 	}
 
 	parts := strings.Split(raw, ",")
@@ -99,7 +149,7 @@ func parseSearchFields(raw string) ([]string, error) {
 			continue
 		}
 		if _, ok := allowed[field]; !ok {
-			return nil, fmt.Errorf("invalid fields parameter: unknown field %q (allowed: path,title,snippet,score,modified_at)", field)
+			return nil, fmt.Errorf("invalid fields parameter: unknown field %q (allowed: path,title,snippet,score,modified_at,explain)", field)
 		}
 		if _, ok := seen[field]; ok {
 			continue
@@ -130,6 +180,8 @@ func projectSearchResults(results []search.Result, fields []string) []map[string
 				item[field] = result.Score
 			case "modified_at":
 				item[field] = result.ModifiedAt
+			case "explain":
+				item[field] = result.Explain
 			}
 		}
 		projected = append(projected, item)

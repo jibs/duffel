@@ -5,7 +5,7 @@ import (
 	"net/http"
 )
 
-const agentProtocolVersion = 3
+const agentProtocolVersion = 4
 
 func handleAgentVersion() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -39,7 +39,7 @@ func handleAgentSnippet() http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 		if path != "" {
-			fmt.Fprintf(w, agentSnippetProject, path, baseURL, baseURL, path, path, path, path, baseURL) //nolint:errcheck
+			fmt.Fprintf(w, agentSnippetProject, path, baseURL, baseURL, path, path, path, path, path, baseURL) //nolint:errcheck
 		} else {
 			fmt.Fprintf(w, agentSnippet, baseURL, baseURL, baseURL) //nolint:errcheck
 		}
@@ -86,13 +86,14 @@ Commands:
   search <query> [options]          Search notes
     -n <limit>                     Max results (default 20, max 100)
     -o <offset>                    Skip N results (pagination)
-    -s <sort>                      Sort by: score (default) or date
-    -p <prefix>                    Filter by path prefix
-    --after <date>                 Only docs modified after ISO date
-    --before <date>                Only docs modified before ISO date
-    --fields <csv>                 Projection: path,title,snippet,score,modified_at
+    --intent <text>                Optional disambiguation intent
+    -C, --candidate-limit <num>    Max candidates sent to reranker
+    --min-score <num>              Minimum score threshold
+    --explain                      Include retrieval score traces
+    --fields <csv>                 Projection: path,title,snippet,score,modified_at,explain
     --brief                        Equivalent to --fields path,title,modified_at,score
     --paths                        Equivalent to --fields path
+    legacy flags removed: -s, -p, --after, --before
 USAGE
   exit 1
 }
@@ -260,19 +261,41 @@ cmd_journal_append() {
 }
 
 cmd_search() {
-  local limit="" offset="" sort="" prefix="" after="" before="" fields=""
+  local limit="" offset="" intent="" candidate_limit="" min_score="" explain="" fields=""
   local query_parts=()
   while [ $# -gt 0 ]; do
     case "$1" in
-      -n)     shift; limit="$1" ;;
-      -o)     shift; offset="$1" ;;
-      -s)     shift; sort="$1" ;;
-      -p)     shift; prefix="$1" ;;
-      --after)  shift; after="$1" ;;
-      --before) shift; before="$1" ;;
-      --fields) shift; fields="$1" ;;
+      -n)
+        [ $# -lt 2 ] && { echo "error: -n requires a value"; return 1; }
+        shift; limit="$1"
+        ;;
+      -o)
+        [ $# -lt 2 ] && { echo "error: -o requires a value"; return 1; }
+        shift; offset="$1"
+        ;;
+      --intent)
+        [ $# -lt 2 ] && { echo "error: --intent requires a value"; return 1; }
+        shift; intent="$1"
+        ;;
+      -C|--candidate-limit)
+        [ $# -lt 2 ] && { echo "error: $1 requires a value"; return 1; }
+        shift; candidate_limit="$1"
+        ;;
+      --min-score)
+        [ $# -lt 2 ] && { echo "error: --min-score requires a value"; return 1; }
+        shift; min_score="$1"
+        ;;
+      --explain) explain="true" ;;
+      --fields)
+        [ $# -lt 2 ] && { echo "error: --fields requires a value"; return 1; }
+        shift; fields="$1"
+        ;;
       --brief) fields="path,title,modified_at,score" ;;
       --paths) fields="path" ;;
+      -s|-p|--after|--before)
+        echo "error: $1 is no longer supported. Use --intent, -C/--candidate-limit, --min-score, --explain, --fields."
+        return 1
+        ;;
       *)      query_parts+=("$1") ;;
     esac
     shift
@@ -285,10 +308,10 @@ cmd_search() {
   local curl_args=(-s -G --data-urlencode "q=${query}")
   [ -n "$limit" ]  && curl_args+=(--data-urlencode "limit=${limit}")
   [ -n "$offset" ] && curl_args+=(--data-urlencode "offset=${offset}")
-  [ -n "$sort" ]   && curl_args+=(--data-urlencode "sort=${sort}")
-  [ -n "$prefix" ] && curl_args+=(--data-urlencode "prefix=${prefix}")
-  [ -n "$after" ]  && curl_args+=(--data-urlencode "after=${after}")
-  [ -n "$before" ] && curl_args+=(--data-urlencode "before=${before}")
+  [ -n "$intent" ] && curl_args+=(--data-urlencode "intent=${intent}")
+  [ -n "$candidate_limit" ] && curl_args+=(--data-urlencode "candidate_limit=${candidate_limit}")
+  [ -n "$min_score" ] && curl_args+=(--data-urlencode "min_score=${min_score}")
+  [ -n "$explain" ] && curl_args+=(--data-urlencode "explain=${explain}")
   [ -n "$fields" ] && curl_args+=(--data-urlencode "fields=${fields}")
   local response
   response=$(curl "${curl_args[@]}" "${DUFFEL_URL}/api/search")
@@ -349,8 +372,9 @@ curl -s %s/api/agent/script > ./duffel.sh && chmod +x ./duffel.sh
 ## LLM Search-First Workflow
 
 1. Start with compact retrieval:
-   - ` + "`duffel find \"<topic terms>\" -p <prefix>`" + `
-2. If results are weak, widen with cheap path-only scans:
+   - ` + "`duffel find \"<topic terms>\"`" + `
+2. If results are ambiguous, add intent and widen with cheap path-only scans:
+   - ` + "`duffel search \"<same query>\" --intent \"<what you mean>\" --brief -n 8`" + `
    - ` + "`duffel search \"<term1 OR term2 OR term*>\" --paths -n 30 -o 0`" + `
    - ` + "`duffel search \"<same query>\" --paths -n 30 -o 30`" + `
 3. Read only the strongest matches:
@@ -361,17 +385,17 @@ Token-saving defaults:
 - Prefer ` + "`find`" + ` over ` + "`ls`" + ` for discovery.
 - Start with ` + "`-n 5`" + ` to ` + "`-n 8`" + `, then paginate with ` + "`-o`" + `.
 - Use ` + "`--paths`" + ` or ` + "`--brief`" + ` before full result objects.
-- Keep searches scoped with ` + "`-p <prefix>`" + ` and date filters (` + "`--after`" + ` / ` + "`--before`" + `).
+- Use ` + "`--intent`" + ` whenever a query could be ambiguous.
 
 ## Command Quick Reference
 
 | Command | Description |
 |---------|-------------|
 | ` + "`duffel find <query> [options]`" + ` | Search-first helper (` + "`-n 8 --brief`" + ` by default) |
-| ` + "`duffel search <query> [options]`" + ` | Full search (` + "`-n`" + `, ` + "`-o`" + `, ` + "`-s`" + `, ` + "`-p`" + `, ` + "`--after`" + `, ` + "`--before`" + `) |
+| ` + "`duffel search <query> [options]`" + ` | Full search (` + "`-n`" + `, ` + "`-o`" + `, ` + "`--intent`" + `, ` + "`-C/--candidate-limit`" + `, ` + "`--min-score`" + `, ` + "`--explain`" + `) |
 | ` + "`duffel search <query> --paths`" + ` | Return only ` + "`path`" + ` field |
 | ` + "`duffel search <query> --brief`" + ` | Return ` + "`path,title,modified_at,score`" + ` |
-| ` + "`duffel search <query> --fields path,title`" + ` | Custom field projection |
+| ` + "`duffel search <query> --fields path,title,explain`" + ` | Custom field projection |
 | ` + "`duffel read <path>`" + ` | Read a note |
 | ` + "`duffel write <path> [content\\|-]`" + ` | Create/update note |
 | ` + "`duffel journal append <path> <content>`" + ` | Append a journal entry |
@@ -380,9 +404,10 @@ Token-saving defaults:
 
 ` + "```" + `bash
 # Compact retrieval pass
-duffel find "api auth session" -p projects/
+duffel find "api auth session"
 
-# Path-only expansion, then read selected notes
+# Intent-aware retrieval, then read selected notes
+duffel search "performance" --intent "software optimization" --brief -n 8
 duffel search "api OR auth OR session*" --paths -n 30
 duffel read projects/auth/design.md
 ` + "```" + `
@@ -390,15 +415,15 @@ duffel read projects/auth/design.md
 ## Notes
 
 - All output is plain text, optimized for LLM consumption
-- Search accepts FTS5 query syntax (phrases, ` + "`OR`" + `, ` + "`NOT`" + `, prefix ` + "`*`" + `, field filters like ` + "`title:keyword`" + `)
+- Prefer ` + "`--intent`" + ` for ambiguous queries (for example, \"performance\" in software vs sports contexts)
 - The script requires ` + "`curl`" + ` (no other dependencies)
 - Override the server URL: ` + "`DUFFEL_URL=%s ./duffel.sh find \"topic\"`" + `
 `
 
 // agentSnippetProject is the project-scoped markdown template.
 // %s slots: (1) project path, (2) base URL description, (3) base URL download,
-// (4) project path prefix, (5) project path prefix, (6) project path read example,
-// (7) project path write example, (8) base URL for env override.
+// (4) project path query hint, (5) project path query hint, (6) project intent hint,
+// (7) project path read example, (8) project path write example, (9) base URL for env override.
 var agentSnippetProject = `# Duffel — %s
 
 Project notes are stored in duffel at %s.
@@ -414,9 +439,9 @@ curl -s %s/api/agent/script > ./duffel.sh && chmod +x ./duffel.sh
 ## LLM Search-First Workflow (Project Scoped)
 
 1. Start inside the project path:
-   - ` + "`duffel find \"<topic terms>\" -p %s`" + `
-2. Expand with cheap path-only pagination:
-   - ` + "`duffel search \"<term1 OR term2 OR term*>\" --paths -p %s -n 30 -o 0`" + `
+   - ` + "`duffel find \"<topic terms> %s\"`" + `
+2. Add intent and expand with cheap path-only pagination:
+   - ` + "`duffel search \"<term1 OR term2 OR term*> %s\" --intent \"project %s\" --paths -n 30 -o 0`" + `
 3. Read only selected files:
    - ` + "`duffel read %s/<file>.md`" + `
 
@@ -430,7 +455,7 @@ Token-saving defaults:
 - ` + "`duffel find <query> [options]`" + ` (` + "`-n 8 --brief`" + ` default)
 - ` + "`duffel search <query> --paths`" + ` (path-only)
 - ` + "`duffel search <query> --brief`" + ` (path/title/modified_at/score)
-- ` + "`duffel search <query> --fields path,title`" + ` (custom)
+- ` + "`duffel search <query> --fields path,title,explain`" + ` (custom)
 - ` + "`duffel write %s/<file>.md <content>`" + ` (create/update)
 
 ## Notes

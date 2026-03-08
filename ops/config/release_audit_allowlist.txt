@@ -1,4 +1,4 @@
 # Intentional fixture paths used in unit tests
-src/backend/internal/search/qmd_test.go:8:
-src/backend/internal/search/qmd_test.go:11:
-src/backend/internal/search/qmd_test.go:12:
+src/backend/internal/search/qmd_test.go:15:
+src/backend/internal/search/qmd_test.go:18:
+src/backend/internal/search/qmd_test.go:19:
