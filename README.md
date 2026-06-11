@@ -6,6 +6,20 @@ It stores notes as ordinary Markdown files, serves them through a small web UI,
 indexes them with `qmd`, and exposes an MCP server so coding agents can search,
 read, write, and append journal entries without custom glue scripts.
 
+## Screenshots
+
+### Notes with related content
+
+![Duffel note view with related recommended content](ops/docs/screenshots/note-recommendations.png)
+
+### Journal history
+
+![Duffel journal view with populated worklog entries](ops/docs/screenshots/journal-worklog.png)
+
+### MCP connector setup
+
+![Duffel MCP connector page with local client configuration](ops/docs/screenshots/mcp-connector.png)
+
 ## Who this is for
 
 Use Duffel when you want:
