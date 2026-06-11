@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>duffel</title>
+  <link rel="stylesheet" href="/css/style.css?v=2">
+</head>
+<body>
+  <div id="app">
+    <nav id="sidebar">
+      <div class="sidebar-header">
+        <a href="#/" id="sidebar-home">duffel</a>
+      </div>
+      <div class="sidebar-create-actions">
+        <button id="btn-new-file" title="Create new file">New file</button>
+        <button id="btn-new-folder" title="Create new folder">New folder</button>
+      </div>
+      <div class="sidebar-tools">
+        <a href="#/_mcp" id="sidebar-mcp">MCP Connector</a>
+      </div>
+      <div id="search-bar">
+        <input type="text" id="search-input" placeholder="Search notes...">
+      </div>
+      <div id="file-tree"></div>
+    </nav>
+    <main id="content">
+      <div id="breadcrumb"></div>
+      <div id="view-file" class="view hidden">
+        <div id="file-toolbar">
+          <button id="btn-edit" class="primary">Edit</button>
+          <button id="btn-archive">Archive</button>
+          <button id="btn-delete" class="danger">Delete</button>
+        </div>
+        <div id="file-rendered"></div>
+        <section id="file-recommended" class="hidden">
+          <h3>Recommended Content</h3>
+          <div id="file-recommended-list"></div>
+        </section>
+      </div>
+      <div id="view-editor" class="view hidden">
+        <div id="editor-toolbar">
+          <button id="btn-save" class="primary">Save</button>
+          <button id="btn-cancel">Cancel</button>
+        </div>
+        <div id="editor-panels">
+          <textarea id="editor-source"></textarea>
+          <div id="editor-preview"></div>
+        </div>
+      </div>
+      <div id="view-journal" class="view hidden">
+        <div id="journal-entries"></div>
+        <div id="journal-append">
+          <textarea id="journal-input" placeholder="Add a new entry..."></textarea>
+          <button id="btn-journal-append">Append</button>
+        </div>
+      </div>
+      <div id="view-dir" class="view hidden">
+        <div id="dir-toolbar">
+          <button id="btn-agent-snippet" title="Copy MCP-oriented snippet for this project">Copy MCP Snippet</button>
+        </div>
+        <div id="dir-listing"></div>
+      </div>
+      <div id="view-search" class="view hidden">
+        <div id="search-toolbar">
+          <div id="search-query-row">
+            <input type="text" id="search-query-input" placeholder="Search...">
+            <button id="btn-search" class="primary">Search</button>
+          </div>
+          <div id="search-filters">
+            <label>Per page
+              <select id="search-limit">
+                <option value="10">10</option>
+                <option value="20" selected>20</option>
+                <option value="50">50</option>
+              </select>
+            </label>
+            <label>Intent
+              <input type="text" id="search-intent" placeholder="e.g. software optimization">
+            </label>
+            <label>Candidate limit
+              <input type="number" id="search-candidate-limit" min="1" step="1" placeholder="40">
+            </label>
+            <label>Min score
+              <input type="number" id="search-min-score" min="0" max="1" step="0.01" placeholder="0">
+            </label>
+            <label class="checkbox">Explain
+              <input type="checkbox" id="search-explain">
+            </label>
+          </div>
+        </div>
+        <div id="search-results"></div>
+        <div id="search-pagination">
+          <span id="search-showing"></span>
+          <div id="search-page-buttons">
+            <button id="btn-search-prev" disabled>Prev</button>
+            <button id="btn-search-next" disabled>Next</button>
+          </div>
+        </div>
+      </div>
+      <div id="view-mcp" class="view hidden">
+        <div class="mcp-page">
+          <header class="mcp-header">
+            <div>
+              <h1>MCP Connector</h1>
+              <p>Manage long-lived bearer tokens and connect MCP clients to this Duffel workspace.</p>
+            </div>
+            <button id="btn-mcp-refresh">Refresh</button>
+          </header>
+
+          <section class="mcp-section">
+            <div class="mcp-auth-row">
+              <label>Management token
+                <input type="password" id="mcp-management-token" placeholder="Paste an existing Duffel bearer token">
+              </label>
+              <button id="btn-mcp-save-management-token">Use token</button>
+            </div>
+            <div class="mcp-section-heading">
+              <h2>Tokens</h2>
+              <button id="btn-mcp-new-token" class="primary">Create token</button>
+            </div>
+            <div id="mcp-token-created" class="token-created hidden">
+              <div>
+                <strong>New token</strong>
+                <p>Copy it now. Duffel will not show this value again.</p>
+              </div>
+              <pre id="mcp-token-value"></pre>
+              <button id="btn-mcp-copy-token">Copy token</button>
+            </div>
+            <div id="mcp-token-list" class="token-list"></div>
+          </section>
+
+          <section class="mcp-section">
+            <h2>Client configuration</h2>
+            <div class="config-grid">
+              <div>
+                <h3>Trusted Tailscale / OpenAI</h3>
+                <pre id="mcp-json-config"></pre>
+                <button id="btn-mcp-copy-json">Copy JSON</button>
+              </div>
+              <div>
+                <h3>Claude Code</h3>
+                <pre id="mcp-claude-config"></pre>
+                <button id="btn-mcp-copy-claude">Copy Claude</button>
+              </div>
+              <div>
+                <h3>Manual check</h3>
+                <pre id="mcp-curl-config"></pre>
+                <button id="btn-mcp-copy-curl">Copy curl</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="mcp-section">
+            <div class="mcp-section-heading">
+              <h2>AGENTS.md prompt</h2>
+              <button id="btn-mcp-copy-agents-prompt">Copy prompt</button>
+            </div>
+            <pre id="mcp-agents-prompt" class="agents-prompt"></pre>
+          </section>
+
+          <section class="mcp-section">
+            <div class="mcp-section-heading">
+              <h2>Trusted Tailscale devices</h2>
+              <button id="btn-trusted-device-add" class="primary">Trust this device</button>
+            </div>
+            <div id="trusted-device-current" class="trusted-current"></div>
+            <div id="trusted-device-list" class="token-list"></div>
+          </section>
+
+        </div>
+      </div>
+      <div id="view-empty" class="view">
+        <p class="empty-state">Select a note or folder from the sidebar.</p>
+      </div>
+    </main>
+  </div>
+  <script src="/lib/marked.min.js"></script>
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

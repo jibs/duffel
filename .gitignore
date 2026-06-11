@@ -1,0 +1,25 @@
+# Data
+data/
+
+# Go
+/duffel
+/server
+*.exe
+
+# Node
+node_modules/
+
+# Tooling logs
+.playwright-mcp/
+
+# TypeScript build output
+src/frontend/js/
+
+# OS
+.DS_Store
+*.swp
+*~
+
+# IDE
+.idea/
+.vscode/

@@ -1,0 +1,16 @@
+[Unit]
+Description=Duffel markdown workspace
+After=network.target
+
+[Service]
+Type=simple
+User=duffel
+WorkingDirectory=/opt/duffel
+Environment=PATH=/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+EnvironmentFile=-/opt/duffel/.env
+ExecStart=/opt/duffel/start.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
