@@ -11,6 +11,7 @@ node_modules/
 
 # Tooling logs
 .playwright-mcp/
+tmp/
 
 # TypeScript build output
 src/frontend/js/
