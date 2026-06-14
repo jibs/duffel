@@ -21,7 +21,7 @@ export interface FileResponse {
   recommended: RecommendedContent[];
 }
 
-export type FileKind = "directory" | "journal" | "markdown" | "html" | "text";
+export type FileKind = "directory" | "journal" | "markdown" | "html" | "text" | "image";
 
 export interface RecommendedContent {
   path: string;
@@ -97,19 +97,14 @@ type ApiError = {
   error?: string;
 };
 
-async function request<T>(method: string, path: string, body?: unknown, bearerToken = ""): Promise<T> {
-  const opts: RequestInit = {
-    method,
-    headers: { "Content-Type": "application/json" },
-  };
+function bearerHeader(bearerToken = ""): Record<string, string> {
   const token = bearerToken || storedBearerToken();
-  if (token) {
-    (opts.headers as Record<string, string>).Authorization = `Bearer ${token}`;
-  }
-  if (body !== undefined) {
-    opts.body = JSON.stringify(body);
-  }
-  const resp = await fetch(`${BASE}${path}`, opts);
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+// parseJSONResponse reads a fetch Response as JSON, throwing the server-provided
+// error message on a non-2xx status. Shared by all JSON-returning API calls.
+async function parseJSONResponse<T>(resp: Response): Promise<T> {
   const text = await resp.text();
   let data: unknown = {};
   if (text) {
@@ -120,10 +115,20 @@ async function request<T>(method: string, path: string, body?: unknown, bearerTo
     }
   }
   if (!resp.ok) {
-    const err = data as ApiError;
-    throw new Error(err.error || `HTTP ${resp.status}`);
+    throw new Error((data as ApiError).error || `HTTP ${resp.status}`);
   }
   return data as T;
+}
+
+async function request<T>(method: string, path: string, body?: unknown, bearerToken = ""): Promise<T> {
+  const opts: RequestInit = {
+    method,
+    headers: { "Content-Type": "application/json", ...bearerHeader(bearerToken) },
+  };
+  if (body !== undefined) {
+    opts.body = JSON.stringify(body);
+  }
+  return parseJSONResponse<T>(await fetch(`${BASE}${path}`, opts));
 }
 
 function storedBearerToken(): string {
@@ -149,6 +154,32 @@ export function readFile(path: string): Promise<FileResponse> {
 
 export function writeFile(path: string, content: string): Promise<void> {
   return request<void>("PUT", `/fs/${path}`, { content });
+}
+
+/** Uploads raw image bytes to the workspace at `path`. */
+export async function uploadImage(path: string, blob: Blob): Promise<FileResponse> {
+  const resp = await fetch(`${BASE}/fs/${path}`, {
+    method: "PUT",
+    headers: { "Content-Type": blob.type || "application/octet-stream", ...bearerHeader() },
+    body: blob,
+  });
+  return parseJSONResponse<FileResponse>(resp);
+}
+
+/** Fetches the raw bytes of a file (e.g. an image) as a Blob, with auth. */
+export async function fetchRaw(path: string): Promise<Blob> {
+  const resp = await fetch(`${BASE}/fs/${path}?raw=1`, { headers: bearerHeader() });
+  if (!resp.ok) {
+    let message = `HTTP ${resp.status}`;
+    try {
+      const data = JSON.parse(await resp.text()) as ApiError;
+      if (data.error) message = data.error;
+    } catch {
+      // Non-JSON error body; fall back to the status code.
+    }
+    throw new Error(message);
+  }
+  return resp.blob();
 }
 
 export function deleteFile(path: string, recursive = false): Promise<void> {

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -210,7 +211,7 @@ func mcpTools() []map[string]any {
 			},
 		}),
 		toolDef("duffel_read", "Read file content", objectWithRequired(map[string]any{"path": map[string]any{"type": "string"}}, "path")),
-		toolDef("duffel_write", "Write file content", objectWithRequired(map[string]any{"path": map[string]any{"type": "string"}, "content": map[string]any{"type": "string"}}, "path", "content")),
+		toolDef("duffel_write", "Write file content. For images, set encoding to \"base64\" and provide base64-encoded bytes in content (path must end in an image extension such as .png/.jpg/.gif/.webp/.svg).", objectWithRequired(map[string]any{"path": map[string]any{"type": "string"}, "content": map[string]any{"type": "string"}, "encoding": map[string]any{"type": "string", "enum": []any{"text", "base64"}, "description": "Content encoding: \"text\" (default) or \"base64\" for binary image data."}}, "path", "content")),
 		toolDef("duffel_delete", "Delete file or empty directory", objectWithRequired(map[string]any{"path": map[string]any{"type": "string"}}, "path")),
 		toolDef("duffel_mkdir", "Create directory", objectWithRequired(map[string]any{"path": map[string]any{"type": "string"}}, "path")),
 		toolDef("duffel_move", "Move file or directory", objectWithRequired(map[string]any{"source": map[string]any{"type": "string"}, "destination": map[string]any{"type": "string"}}, "source", "destination")),
@@ -282,6 +283,23 @@ func runMCPTool(store *storage.Store, getSearcher func() *search.Searcher, onCon
 		if path == "" {
 			return nil, fmt.Errorf("path is required")
 		}
+		// Image files have no text content; return metadata so agents never
+		// receive corrupted bytes through the string Content field.
+		if storage.IsImagePath(path) {
+			info, err := store.StatFile(path)
+			if err != nil {
+				return nil, mcpStorageError(path, err)
+			}
+			return fileGetResponse{
+				Path:        info.Path,
+				Content:     info.Content,
+				Size:        info.Size,
+				ModTime:     info.ModTime,
+				IsJournal:   info.IsJournal,
+				Kind:        info.Kind,
+				Recommended: []search.Result{},
+			}, nil
+		}
 		file, err := store.Read(path)
 		if err != nil {
 			return nil, mcpStorageError(path, err)
@@ -305,6 +323,22 @@ func runMCPTool(store *storage.Store, getSearcher func() *search.Searcher, onCon
 		content := argString(args, "content", "")
 		if path == "" {
 			return nil, fmt.Errorf("path is required")
+		}
+		// encoding:"base64" writes binary content (e.g. an image) via WriteRaw.
+		if strings.ToLower(argString(args, "encoding", "")) == "base64" {
+			raw, err := base64.StdEncoding.DecodeString(content)
+			if err != nil {
+				return nil, fmt.Errorf("invalid base64 content: %w", err)
+			}
+			if err := store.WriteRaw(path, raw); err != nil {
+				return nil, mcpStorageError(path, err)
+			}
+			triggerContentChanged(onContentChanged)
+			info, err := store.StatFile(path)
+			if err != nil {
+				return nil, err
+			}
+			return info, nil
 		}
 		if err := store.Write(path, []byte(content)); err != nil {
 			return nil, mcpStorageError(path, err)

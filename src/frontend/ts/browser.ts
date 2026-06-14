@@ -44,6 +44,8 @@ export async function loadTree(basePath = "", depth = 0): Promise<void> {
         icon.textContent = "📓";
       } else if (entry.kind === "html") {
         icon.textContent = "🌐";
+      } else if (entry.kind === "image") {
+        icon.textContent = "🖼️";
       } else {
         icon.textContent = "📄";
       }
@@ -117,7 +119,7 @@ async function toggleFolder(path: string, item: HTMLElement, depth: number): Pro
 
       const icon = document.createElement("span");
       icon.className = "icon";
-      icon.textContent = entry.isDir ? "▸" : entry.isJournal ? "📓" : entry.kind === "html" ? "🌐" : "📄";
+      icon.textContent = entry.isDir ? "▸" : entry.isJournal ? "📓" : entry.kind === "html" ? "🌐" : entry.kind === "image" ? "🖼️" : "📄";
       child.appendChild(icon);
 
       const nameSpan = document.createElement("span");

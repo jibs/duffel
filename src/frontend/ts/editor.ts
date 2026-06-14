@@ -1,4 +1,4 @@
-import { writeFile, readFile, FileResponse } from "./api.js";
+import { writeFile, readFile, uploadImage, FileResponse } from "./api.js";
 import { navigate } from "./app.js";
 import { renderFileContent } from "./render.js";
 import { showAlert, showConfirm } from "./dialog.js";
@@ -84,6 +84,85 @@ export async function checkEditorBackendChange(): Promise<void> {
 }
 
 editorSource.addEventListener("input", updatePreview);
+
+// --- Image upload (paste + drag-drop) ---
+
+const MIME_TO_EXT: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/gif": "gif",
+  "image/webp": "webp",
+  "image/avif": "avif",
+  "image/bmp": "bmp",
+  "image/x-icon": "ico",
+  "image/svg+xml": "svg",
+};
+
+function extForType(type: string): string {
+  return MIME_TO_EXT[type.toLowerCase()] || "png";
+}
+
+function insertAtCaret(text: string): void {
+  const start = editorSource.selectionStart;
+  const end = editorSource.selectionEnd;
+  editorSource.value = editorSource.value.slice(0, start) + text + editorSource.value.slice(end);
+  const pos = start + text.length;
+  editorSource.selectionStart = editorSource.selectionEnd = pos;
+}
+
+function replaceFirst(needle: string, replacement: string): void {
+  const idx = editorSource.value.indexOf(needle);
+  if (idx < 0) return;
+  editorSource.value = editorSource.value.slice(0, idx) + replacement + editorSource.value.slice(idx + needle.length);
+}
+
+async function uploadImageBlob(blob: Blob): Promise<void> {
+  const ext = extForType(blob.type);
+  const name = `pasted-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const path = `_attachments/${name}`;
+  // Placeholder has no src, so the preview won't try to fetch it mid-upload.
+  const placeholder = `![uploading ${name}…]()`;
+  insertAtCaret(placeholder);
+  updatePreview();
+  try {
+    await uploadImage(path, blob);
+    replaceFirst(placeholder, `![](/${path})`);
+  } catch (err) {
+    replaceFirst(placeholder, "");
+    await showAlert(`Image upload failed: ${(err as Error).message}`);
+  }
+  updatePreview();
+}
+
+editorSource.addEventListener("paste", (e) => {
+  const items = (e as ClipboardEvent).clipboardData?.items;
+  if (!items) return;
+  const images = Array.from(items).filter((it) => it.kind === "file" && it.type.startsWith("image/"));
+  if (!images.length) return;
+  e.preventDefault();
+  for (const item of images) {
+    const file = item.getAsFile();
+    if (file) void uploadImageBlob(file);
+  }
+});
+
+editorSource.addEventListener("dragover", (e) => {
+  const items = (e as DragEvent).dataTransfer?.items;
+  if (items && Array.from(items).some((it) => it.kind === "file")) {
+    e.preventDefault();
+  }
+});
+
+editorSource.addEventListener("drop", (e) => {
+  const files = (e as DragEvent).dataTransfer?.files;
+  if (!files || !files.length) return;
+  const images = Array.from(files).filter((f) => f.type.startsWith("image/"));
+  if (!images.length) return;
+  e.preventDefault();
+  for (const file of images) {
+    void uploadImageBlob(file);
+  }
+});
 
 btnSave.addEventListener("click", async () => {
   if (!currentPath) return;

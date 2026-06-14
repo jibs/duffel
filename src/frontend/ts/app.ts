@@ -5,6 +5,7 @@ import {
   archiveFile,
   createDir,
   fetchAgentSnippet,
+  fetchRaw,
   FileResponse,
   RecommendedContent,
 } from "./api.js";
@@ -12,11 +13,11 @@ import { loadTree, highlightActive } from "./browser.js";
 import { checkEditorBackendChange, openEditor } from "./editor.js";
 import { showJournal } from "./journal.js";
 import { showMCPConnector } from "./mcp.js";
-import { attachHTMLFrameLinkBridge, parseRouteHash, renderFileContent, routeHash, scrollHTMLFrameToFragment, scrollToFragment } from "./render.js";
+import { attachHTMLFrameLinkBridge, clearImageCache, parseRouteHash, renderFileContent, routeHash, scrollHTMLFrameToFragment, scrollToFragment } from "./render.js";
 import { isSearchVisible, refreshSearch } from "./search.js";
 import { showAlert, showConfirm, showPrompt } from "./dialog.js";
 
-type ViewName = "file" | "editor" | "journal" | "dir" | "search" | "mcp" | "empty";
+type ViewName = "file" | "editor" | "journal" | "dir" | "search" | "mcp" | "image" | "empty";
 
 const views: Record<ViewName, HTMLElement> = {
   file: document.getElementById("view-file")!,
@@ -25,6 +26,7 @@ const views: Record<ViewName, HTMLElement> = {
   dir: document.getElementById("view-dir")!,
   search: document.getElementById("view-search")!,
   mcp: document.getElementById("view-mcp")!,
+  image: document.getElementById("view-image")!,
   empty: document.getElementById("view-empty")!,
 };
 
@@ -39,9 +41,14 @@ const btnDelete = document.getElementById("btn-delete")!;
 const btnNewFile = document.getElementById("btn-new-file")!;
 const btnNewFolder = document.getElementById("btn-new-folder")!;
 const btnAgentSnippet = document.getElementById("btn-agent-snippet")!;
+const imageViewImg = document.getElementById("image-view-img") as HTMLImageElement;
+const btnImageDownload = document.getElementById("btn-image-download") as HTMLAnchorElement;
+const btnImageArchive = document.getElementById("btn-image-archive")!;
+const btnImageDelete = document.getElementById("btn-image-delete")!;
 
 let currentFile: FileResponse | null = null;
 let cleanupHTMLFrameLinkBridge: (() => void) | null = null;
+let activeImageObjectURL: string | null = null;
 
 function showView(name: ViewName): void {
   Object.entries(views).forEach(([key, el]) => {
@@ -52,6 +59,10 @@ function showView(name: ViewName): void {
 function cleanupRenderedFile(): void {
   cleanupHTMLFrameLinkBridge?.();
   cleanupHTMLFrameLinkBridge = null;
+  if (activeImageObjectURL) {
+    URL.revokeObjectURL(activeImageObjectURL);
+    activeImageObjectURL = null;
+  }
 }
 
 function updateBreadcrumb(path: string): void {
@@ -86,7 +97,11 @@ async function showFile(path: string, fragment = ""): Promise<void> {
     currentFile = file;
     updateBreadcrumb(path);
 
-    if (file.isJournal) {
+    if (file.kind === "image") {
+      cleanupRenderedFile();
+      hideFileRecommendations();
+      await showImage(file);
+    } else if (file.isJournal) {
       cleanupRenderedFile();
       hideFileRecommendations();
       showJournal(path, file.content);
@@ -114,6 +129,24 @@ async function showFile(path: string, fragment = ""): Promise<void> {
     // Maybe it's a directory
     await showDirectory(path);
   }
+}
+
+async function showImage(file: FileResponse): Promise<void> {
+  btnImageDownload.setAttribute("download", file.path.split("/").pop() || "image");
+  btnImageDownload.removeAttribute("href");
+  try {
+    const blob = await fetchRaw(file.path);
+    activeImageObjectURL = URL.createObjectURL(blob);
+    imageViewImg.src = activeImageObjectURL;
+    imageViewImg.alt = file.path;
+    // Download from the fetched blob: a plain href to the API would 401 under
+    // bearer auth since an <a download> can't attach the Authorization header.
+    btnImageDownload.href = activeImageObjectURL;
+  } catch (err) {
+    imageViewImg.removeAttribute("src");
+    imageViewImg.alt = `Failed to load image: ${(err as Error).message}`;
+  }
+  showView("image");
 }
 
 async function navigateToFirstExisting(candidates: string[], fragment: string): Promise<void> {
@@ -151,7 +184,7 @@ async function showDirectory(path: string): Promise<void> {
       dirListing.appendChild(empty);
     } else {
       entries.forEach((e) => {
-        const icon = e.isDir ? "📁" : e.isJournal ? "📓" : e.kind === "html" ? "🌐" : "📄";
+        const icon = e.isDir ? "📁" : e.isJournal ? "📓" : e.kind === "html" ? "🌐" : e.kind === "image" ? "🖼️" : "📄";
         const fullPath = path ? `${path}/${e.name}` : e.name;
         const size = e.isDir ? "" : formatSize(e.size);
         const updated = e.modTime ? `Last updated ${formatModifiedAt(e.modTime)}` : "";
@@ -354,6 +387,9 @@ function connectRealtimeUpdates(): void {
     }
     refreshTimer = window.setTimeout(async () => {
       refreshTimer = undefined;
+      // Workspace content changed: drop cached image object URLs so re-uploads
+      // to the same path render fresh and URLs don't accumulate.
+      clearImageCache();
       await loadTree();
       if (isSearchVisible()) {
         refreshSearch();
@@ -383,7 +419,7 @@ btnEdit.addEventListener("click", () => {
   }
 });
 
-btnArchive.addEventListener("click", async () => {
+async function archiveCurrentFile(): Promise<void> {
   if (!currentFile) return;
   if (!await showConfirm(`Archive "${currentFile.path}"?`, { confirmLabel: "Archive" })) return;
   try {
@@ -393,9 +429,9 @@ btnArchive.addEventListener("click", async () => {
   } catch (err) {
     await showAlert(`Archive failed: ${(err as Error).message}`);
   }
-});
+}
 
-btnDelete.addEventListener("click", async () => {
+async function deleteCurrentFile(): Promise<void> {
   if (!currentFile) return;
   if (!await showConfirm(`Delete "${currentFile.path}"? This cannot be undone.`, { danger: true })) return;
   try {
@@ -405,7 +441,12 @@ btnDelete.addEventListener("click", async () => {
   } catch (err) {
     await showAlert(`Delete failed: ${(err as Error).message}`);
   }
-});
+}
+
+btnArchive.addEventListener("click", archiveCurrentFile);
+btnDelete.addEventListener("click", deleteCurrentFile);
+btnImageArchive.addEventListener("click", archiveCurrentFile);
+btnImageDelete.addEventListener("click", deleteCurrentFile);
 
 btnNewFile.addEventListener("click", async () => {
   const name = await showPrompt("New file name:", { placeholder: "notes.md" });

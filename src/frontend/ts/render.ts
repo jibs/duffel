@@ -1,4 +1,4 @@
-import { FileKind } from "./api.js";
+import { FileKind, fetchRaw } from "./api.js";
 import { sanitizeHTML } from "./sanitize.js";
 
 type LinkTarget =
@@ -23,10 +23,79 @@ export function renderContent(path: string, content: string, kind: FileKind): st
       const label = target.split("/").pop()!.replace(/\.(md|markdown|html|htm)$/i, "").replace(/-/g, " ");
       return `[${label}](${target})`;
     });
-    return sanitizeHTML(marked.parse(markdown));
+    return rewriteImageSources(sanitizeHTML(marked.parse(markdown)), path);
   }
 
   return escapeHTML(content);
+}
+
+// rewriteImageSources defers loading of workspace images: relative or
+// root-relative <img src> values are resolved to a workspace path and stashed in
+// data-duffel-raw (with src cleared) so hydrateImages can fetch them with auth
+// and swap in an object URL. External (http/https/data) sources are left intact.
+function rewriteImageSources(html: string, currentPath: string): string {
+  const template = document.createElement("template");
+  template.innerHTML = html || "";
+  template.content.querySelectorAll("img[src]").forEach((img) => {
+    const src = (img.getAttribute("src") || "").trim();
+    if (!src || src.startsWith("//") || src.startsWith("data:") || src.startsWith("blob:")) {
+      return;
+    }
+    if (HAS_SCHEME.test(src)) {
+      return; // external scheme (http:, https:, etc.) — load directly
+    }
+    const resolved = normalizeWorkspacePath(currentPath, src);
+    if (!resolved) {
+      return;
+    }
+    img.setAttribute("data-duffel-raw", resolved);
+    img.removeAttribute("src");
+  });
+  return template.innerHTML;
+}
+
+const imageURLCache = new Map<string, Promise<string>>();
+
+function rawObjectURL(workspacePath: string): Promise<string> {
+  let pending = imageURLCache.get(workspacePath);
+  if (!pending) {
+    pending = fetchRaw(workspacePath).then((blob) => URL.createObjectURL(blob));
+    imageURLCache.set(workspacePath, pending);
+    // Drop failed lookups so a later render can retry.
+    pending.catch(() => imageURLCache.delete(workspacePath));
+  }
+  return pending;
+}
+
+// clearImageCache revokes every cached object URL and empties the cache. The
+// cache is keyed by workspace path, so it must be cleared whenever workspace
+// content changes — otherwise a re-upload to the same path would keep serving
+// the stale bytes, and the object URLs would accumulate for the session.
+export function clearImageCache(): void {
+  for (const pending of imageURLCache.values()) {
+    pending.then((url) => URL.revokeObjectURL(url)).catch(() => undefined);
+  }
+  imageURLCache.clear();
+}
+
+// hydrateImages loads object URLs for any deferred workspace images in container.
+// Object URLs are cached by workspace path so the keystroke-driven editor preview
+// doesn't refetch or reallocate on every render.
+export function hydrateImages(container: HTMLElement): void {
+  container.querySelectorAll<HTMLImageElement>("img[data-duffel-raw]").forEach((img) => {
+    const workspacePath = img.getAttribute("data-duffel-raw") || "";
+    img.removeAttribute("data-duffel-raw");
+    if (!workspacePath) {
+      return;
+    }
+    rawObjectURL(workspacePath)
+      .then((url) => {
+        img.src = url;
+      })
+      .catch(() => {
+        /* leave the image unresolved; a later render can retry */
+      });
+  });
 }
 
 export function renderFileContent(
@@ -65,6 +134,7 @@ export function renderFileContent(
   }
 
   container.innerHTML = renderContent(path, content, kind);
+  hydrateImages(container);
   attachWorkspaceLinkHandlers(container, path, navigate);
   return null;
 }
