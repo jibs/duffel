@@ -29,17 +29,19 @@ Journal entry rules:
 ## Architecture
 
 - Backend: Go + chi router
-- Frontend: static HTML/CSS/TypeScript (compiled with `tsc`)
-- Storage: filesystem under `./data` by default
+- Frontend: static HTML/CSS/TypeScript (compiled with `pnpm tsc`, output to `src/frontend/js/`)
+- Storage: filesystem under `./data` by default; SQLite (via `modernc.org/sqlite`) for auth/token state
 - Search: qmd CLI index/query pipeline
+- Auth: optional Tailscale-based trusted-device auth, password auth, and OAuth (`src/backend/internal/auth/`)
 
 ## Core Conventions
 
-- API responses are JSON (except agent script/snippet/version and OAuth authorize HTML responses)
+- API responses are JSON (except agent script/snippet/version, OAuth authorize HTML, image file responses, and SSE event streams)
 - All paths must be canonicalized and remain under data root
 - Journal files use front matter `type: journal`
 - Journal append inserts `---` + `## YYYY-MM-DD HH:MM` timestamp section
 - Archive moves files to a sibling `.archive/` directory
+- SSE events are broadcast on content change via the event broker (`handlers_events.go`)
 
 ## Code Style
 
@@ -49,17 +51,27 @@ Journal entry rules:
 
 ## Test Expectations
 
-- Unit tests: `tests/unit/backend/`
-- Integration tests: `tests/integration/backend/`
+- Unit tests: `src/backend/internal/...` (excluding `/api`) + `tests/unit/backend/` — run with `make test-unit`
+- Integration tests: `src/backend/internal/api` + `tests/integration/backend/` — run with `make test-integration`
+- End-to-end tests: `tests/e2e/` — run with `make test-e2e`
+- Live tests: `tests/live/` — require `LIVE_TESTS=1 LIVE_TESTS_CONFIRM=YES`, run with `make test-live`
 - Run `make ci` before merge
 
 ## Common Commands
 
-- `make setup` install dependencies
-- `make dev` run development server
-- `make test` run all tests
-- `make lint` run linters
-- `make ci` full checks (including release audit)
+- `make setup` install dependencies and rebuild native addons
+- `make dev` build frontend JS and run development server
+- `make build-js` build TypeScript frontend only
+- `make build` build backend binary
+- `make test` run all tests (unit + integration + e2e)
+- `make test-unit` run backend unit tests
+- `make test-integration` run backend integration tests
+- `make test-e2e` run end-to-end tests
+- `make fmt` format Go and frontend TypeScript
+- `make lint` run Go and JS linters
+- `make typecheck` run go vet and TypeScript type checks
+- `make ci` full CI pipeline (fmt-check, lint, typecheck, build-js, test, release-audit)
+- `make deploy` restart the production service via SSH (push origin/main first)
 - `make release-audit` run privacy/leak scan on tracked files
 
 ## Important Paths
@@ -67,8 +79,13 @@ Journal entry rules:
 - API handlers: `src/backend/internal/api/`
 - Storage layer: `src/backend/internal/storage/`
 - Search layer: `src/backend/internal/search/`
-- Frontend TS: `src/frontend/ts/`
+- Auth service: `src/backend/internal/auth/`
+- Markdown validation: `src/backend/internal/markdown/`
+- Frontend TS source: `src/frontend/ts/`
+- Frontend compiled JS: `src/frontend/js/` (generated, do not edit directly)
 - Config: `src/backend/internal/config/`
+- Server entrypoint: `src/backend/cmd/server/main.go`
+- Ops scripts: `ops/scripts/`
 
 ## Agent Integration Contract
 
