@@ -79,6 +79,8 @@ func NewRouter(store *storage.Store, getSearcher func() *search.Searcher, onCont
 
 			r.Post("/journal/*", handleJournal(store, notifyContentChanged))
 
+			r.Post("/clip", handleClip(store, notifyContentChanged))
+
 			r.Get("/search", handleSearch(store, getSearcher))
 			r.Get("/events", handleEvents(eventBroker))
 			r.Method(http.MethodGet, "/mcp/tokens", handleMCPTokens(authService))

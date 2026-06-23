@@ -263,8 +263,96 @@ func TestContentMutationHooks(t *testing.T) {
 		}
 	})
 
-	if got := hookCalls.Load(); got < 6 {
-		t.Fatalf("hook calls = %d, want at least 6 (PUT + seed PUT + move + journal create + append + mkdir)", got)
+	t.Run("clip triggers hook", func(t *testing.T) {
+		resp, err := http.Post(srv.URL+"/api/clip", "application/json",
+			strings.NewReader(`{"noteName":"Hook Clip","content":"# hook"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("clip status = %d, want 201", resp.StatusCode)
+		}
+	})
+
+	if got := hookCalls.Load(); got < 7 {
+		t.Fatalf("hook calls = %d, want at least 7 (PUT + seed PUT + move + journal create + append + mkdir + clip)", got)
+	}
+}
+
+func TestClipCreatesMarkdownAndExtractsImages(t *testing.T) {
+	srv, store := setupTestServer(t)
+	defer srv.Close()
+
+	payload, err := json.Marshal(map[string]string{
+		"noteName":    "My Page!",
+		"frontmatter": "---\ntitle: Test\n---",
+		"content":     "---\ntitle: Test\n---\n\n# Saved\n\n![logo](data:image/png;base64,aGVsbG8=)",
+		"path":        "clips",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := http.Post(srv.URL+"/api/clip", "application/json", strings.NewReader(string(payload)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("clip status = %d, want 201: %s", resp.StatusCode, body)
+	}
+
+	var result struct {
+		Path string `json:"path"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !strings.HasPrefix(result.Path, "clips/my-page-") || !strings.HasSuffix(result.Path, ".md") {
+		t.Fatalf("path = %q, want clips/my-page-*.md", result.Path)
+	}
+
+	file, err := store.Read(result.Path)
+	if err != nil {
+		t.Fatalf("read clip: %v", err)
+	}
+	if strings.Count(file.Content, "---\ntitle: Test\n---") != 1 {
+		t.Fatalf("frontmatter block count = %d, want 1\n%s", strings.Count(file.Content, "---\ntitle: Test\n---"), file.Content)
+	}
+	if !strings.Contains(file.Content, "# Saved") {
+		t.Fatalf("clip content missing markdown body:\n%s", file.Content)
+	}
+	if strings.Contains(file.Content, "data:image/png;base64") {
+		t.Fatalf("clip content still contains embedded data URI:\n%s", file.Content)
+	}
+	if !strings.Contains(file.Content, "![](attachments/my-page-1.png)") {
+		t.Fatalf("clip content missing extracted image link:\n%s", file.Content)
+	}
+
+	attachment, err := store.StatFile("clips/attachments/my-page-1.png")
+	if err != nil {
+		t.Fatalf("stat attachment: %v", err)
+	}
+	if attachment.Size != int64(len("hello")) {
+		t.Fatalf("attachment size = %d, want %d", attachment.Size, len("hello"))
+	}
+}
+
+func TestClipRejectsUnsafePath(t *testing.T) {
+	srv, _ := setupTestServer(t)
+	defer srv.Close()
+
+	resp, err := http.Post(srv.URL+"/api/clip", "application/json",
+		strings.NewReader(`{"noteName":"Bad","content":"body","path":"../outside"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("clip status = %d, want 400: %s", resp.StatusCode, body)
 	}
 }
 
