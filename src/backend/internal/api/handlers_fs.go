@@ -167,6 +167,11 @@ func handleBinaryPut(w http.ResponseWriter, r *http.Request, store *storage.Stor
 		writeError(w, http.StatusBadRequest, storage.ErrUnsupportedBinary.Error(), urlPath)
 		return
 	}
+	if !imageUploadContentTypeMatches(urlPath, r.Header.Get("Content-Type")) {
+		expected, _ := storage.ImageContentType(urlPath)
+		writeError(w, http.StatusBadRequest, "image Content-Type must match file extension: expected "+expected, urlPath)
+		return
+	}
 
 	r.Body = http.MaxBytesReader(w, r.Body, maxImageBytes)
 	content, err := io.ReadAll(r.Body)
@@ -192,6 +197,32 @@ func handleBinaryPut(w http.ResponseWriter, r *http.Request, store *storage.Stor
 		return
 	}
 	writeJSON(w, http.StatusOK, info)
+}
+
+func imageUploadContentTypeMatches(urlPath string, rawContentType string) bool {
+	expected, ok := storage.ImageContentType(urlPath)
+	if !ok {
+		return false
+	}
+	actual := canonicalImageContentType(rawContentType)
+	return actual != "" && actual == expected
+}
+
+func canonicalImageContentType(raw string) string {
+	ct := strings.ToLower(strings.TrimSpace(raw))
+	if i := strings.IndexByte(ct, ';'); i >= 0 {
+		ct = strings.TrimSpace(ct[:i])
+	}
+	switch ct {
+	case "image/jpg":
+		return "image/jpeg"
+	case "image/vnd.microsoft.icon":
+		return "image/x-icon"
+	case "image/x-ms-bmp":
+		return "image/bmp"
+	default:
+		return ct
+	}
 }
 
 // serveRawFile streams a file's bytes with an allowlisted Content-Type. SVGs are

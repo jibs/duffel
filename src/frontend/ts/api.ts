@@ -157,10 +157,10 @@ export function writeFile(path: string, content: string): Promise<void> {
 }
 
 /** Uploads raw image bytes to the workspace at `path`. */
-export async function uploadImage(path: string, blob: Blob): Promise<FileResponse> {
+export async function uploadImage(path: string, blob: Blob, contentType = blob.type): Promise<FileResponse> {
   const resp = await fetch(`${BASE}/fs/${path}`, {
     method: "PUT",
-    headers: { "Content-Type": blob.type || "application/octet-stream", ...bearerHeader() },
+    headers: { "Content-Type": contentType || "application/octet-stream", ...bearerHeader() },
     body: blob,
   });
   return parseJSONResponse<FileResponse>(resp);

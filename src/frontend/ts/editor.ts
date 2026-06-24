@@ -87,19 +87,50 @@ editorSource.addEventListener("input", updatePreview);
 
 // --- Image upload (paste + drag-drop) ---
 
+type ImageUploadType = { contentType: string; ext: string };
+
 const MIME_TO_EXT: Record<string, string> = {
   "image/png": "png",
   "image/jpeg": "jpg",
+  "image/jpg": "jpg",
   "image/gif": "gif",
   "image/webp": "webp",
   "image/avif": "avif",
   "image/bmp": "bmp",
+  "image/x-ms-bmp": "bmp",
   "image/x-icon": "ico",
+  "image/vnd.microsoft.icon": "ico",
   "image/svg+xml": "svg",
 };
 
-function extForType(type: string): string {
-  return MIME_TO_EXT[type.toLowerCase()] || "png";
+const EXT_TO_MIME: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+  avif: "image/avif",
+  bmp: "image/bmp",
+  ico: "image/x-icon",
+  svg: "image/svg+xml",
+};
+
+function imageUploadType(blob: Blob): ImageUploadType | null {
+  const mime = blob.type.toLowerCase();
+  const mimeExt = MIME_TO_EXT[mime];
+  if (mimeExt) {
+    return { contentType: EXT_TO_MIME[mimeExt], ext: mimeExt };
+  }
+
+  if (blob instanceof File) {
+    const ext = blob.name.split(".").pop()?.toLowerCase() || "";
+    const contentType = EXT_TO_MIME[ext];
+    if (contentType) {
+      return { contentType, ext: ext === "jpeg" ? "jpg" : ext };
+    }
+  }
+
+  return null;
 }
 
 function insertAtCaret(text: string): void {
@@ -117,7 +148,12 @@ function replaceFirst(needle: string, replacement: string): void {
 }
 
 async function uploadImageBlob(blob: Blob): Promise<void> {
-  const ext = extForType(blob.type);
+  const uploadType = imageUploadType(blob);
+  if (!uploadType) {
+    await showAlert("Image upload failed: unsupported image type");
+    return;
+  }
+  const ext = uploadType.ext;
   const name = `pasted-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
   const path = `_attachments/${name}`;
   // Placeholder has no src, so the preview won't try to fetch it mid-upload.
@@ -125,7 +161,7 @@ async function uploadImageBlob(blob: Blob): Promise<void> {
   insertAtCaret(placeholder);
   updatePreview();
   try {
-    await uploadImage(path, blob);
+    await uploadImage(path, blob, uploadType.contentType);
     replaceFirst(placeholder, `![](/${path})`);
   } catch (err) {
     replaceFirst(placeholder, "");
