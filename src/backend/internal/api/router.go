@@ -170,7 +170,7 @@ func isMutatingAPIRequest(r *http.Request) bool {
 
 func parseAllowedOrigins(raw string) map[string]struct{} {
 	origins := make(map[string]struct{})
-	for _, part := range strings.Split(raw, ",") {
+	for part := range strings.SplitSeq(raw, ",") {
 		origin := normalizeOrigin(part)
 		if origin == "" {
 			continue
@@ -250,7 +250,7 @@ func forwardedHeaderValue(raw, key string) string {
 	if entry == "" {
 		return ""
 	}
-	for _, part := range strings.Split(entry, ";") {
+	for part := range strings.SplitSeq(entry, ";") {
 		name, value, ok := strings.Cut(strings.TrimSpace(part), "=")
 		if !ok || !strings.EqualFold(strings.TrimSpace(name), key) {
 			continue

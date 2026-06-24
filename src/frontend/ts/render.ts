@@ -13,13 +13,22 @@ const HTML_EXTENSIONS = new Set([".html", ".htm"]);
 const IFRAME_LINK_MESSAGE = "duffel:html-link";
 let activeHTMLFrameCleanup: (() => void) | null = null;
 
+function stripFrontmatter(content: string): string {
+  if (!content.startsWith("---\n")) return content;
+  const rest = content.slice(4);
+  const end = rest.indexOf("\n---\n");
+  if (end === -1) return content;
+  return rest.slice(end + 5).replace(/^\n/, "");
+}
+
 export function renderContent(path: string, content: string, kind: FileKind): string {
   if (kind === "html" || isHTMLPath(path)) {
     return "";
   }
 
   if (typeof marked !== "undefined") {
-    const markdown = content.replace(/\[\[([^\]]+)\]\]/g, (_: string, target: string) => {
+    const stripped = stripFrontmatter(content);
+    const markdown = stripped.replace(/\[\[([^\]]+)\]\]/g, (_: string, target: string) => {
       const label = target.split("/").pop()!.replace(/\.(md|markdown|html|htm)$/i, "").replace(/-/g, " ");
       return `[${label}](${target})`;
     });
