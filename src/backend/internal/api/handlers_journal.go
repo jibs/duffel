@@ -9,7 +9,7 @@ import (
 	"duffel/pkg/duffellib/storage"
 )
 
-func handleJournal(store *storage.Store, onContentChanged func()) http.HandlerFunc {
+func handleJournal(store *storage.Store, onContentChanged ContentChangeNotifier) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		urlPath := extractPath(r)
 
@@ -24,7 +24,7 @@ func handleJournal(store *storage.Store, onContentChanged func()) http.HandlerFu
 	}
 }
 
-func handleJournalCreate(store *storage.Store, onContentChanged func(), w http.ResponseWriter, r *http.Request, urlPath string) {
+func handleJournalCreate(store *storage.Store, onContentChanged ContentChangeNotifier, w http.ResponseWriter, r *http.Request, urlPath string) {
 	var body struct {
 		Content string `json:"content"`
 	}
@@ -42,7 +42,7 @@ func handleJournalCreate(store *storage.Store, onContentChanged func(), w http.R
 		writeError(w, http.StatusInternalServerError, err.Error(), urlPath)
 		return
 	}
-	triggerContentChanged(onContentChanged)
+	triggerContentChanged(onContentChanged, urlPath)
 
 	file, err := store.Read(urlPath)
 	if err != nil {
@@ -52,7 +52,7 @@ func handleJournalCreate(store *storage.Store, onContentChanged func(), w http.R
 	writeJSON(w, http.StatusCreated, file)
 }
 
-func handleJournalAppend(store *storage.Store, onContentChanged func(), w http.ResponseWriter, r *http.Request, urlPath string) {
+func handleJournalAppend(store *storage.Store, onContentChanged ContentChangeNotifier, w http.ResponseWriter, r *http.Request, urlPath string) {
 	var body struct {
 		Content string `json:"content"`
 	}
@@ -79,7 +79,7 @@ func handleJournalAppend(store *storage.Store, onContentChanged func(), w http.R
 		writeError(w, http.StatusInternalServerError, err.Error(), urlPath)
 		return
 	}
-	triggerContentChanged(onContentChanged)
+	triggerContentChanged(onContentChanged, urlPath)
 
 	file, err := store.Read(urlPath)
 	if err != nil {

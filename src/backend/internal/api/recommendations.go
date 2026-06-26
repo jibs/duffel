@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 	"unicode/utf8"
 
 	"duffel/pkg/duffellib/search"
@@ -17,14 +19,110 @@ const (
 	recommendationMaxQueryRunes  = 1800
 )
 
-func recommendForFile(store *storage.Store, getSearcher func() *search.Searcher, file *storage.FileInfo) []search.Result {
+type recommendationCacheEntry struct {
+	modTime time.Time
+	results []search.Result
+}
+
+// RecommendationCache keeps related-content lookups off the read path. It is
+// intentionally eventually consistent; reads return the most recently
+// materialized recommendations, or an empty slice while the cache is warming.
+type RecommendationCache struct {
+	mu      sync.RWMutex
+	entries map[string]recommendationCacheEntry
+}
+
+func NewRecommendationCache() *RecommendationCache {
+	return &RecommendationCache{
+		entries: make(map[string]recommendationCacheEntry),
+	}
+}
+
+func (c *RecommendationCache) ForFile(file *storage.FileInfo) []search.Result {
+	if c == nil || file == nil || file.IsJournal {
+		return []search.Result{}
+	}
+	path := normalizeRecommendationPath(file.Path)
+	if path == "" {
+		return []search.Result{}
+	}
+
+	c.mu.RLock()
+	entry, ok := c.entries[path]
+	c.mu.RUnlock()
+	if !ok || !entry.modTime.Equal(file.ModTime) {
+		return []search.Result{}
+	}
+	return cloneSearchResults(entry.results)
+}
+
+func (c *RecommendationCache) MaterializePaths(store *storage.Store, searcher *search.Searcher, paths []string) {
+	if c == nil || store == nil || searcher == nil {
+		return
+	}
+
+	for _, path := range paths {
+		key := normalizeRecommendationPath(path)
+		if key == "" {
+			continue
+		}
+		if storage.IsImagePath(key) {
+			c.Delete(key)
+			continue
+		}
+
+		file, err := store.Read(key)
+		if err != nil {
+			c.Delete(key)
+			continue
+		}
+		if file.IsJournal {
+			c.Delete(key)
+			continue
+		}
+
+		results := computeRecommendations(store, searcher, file)
+		c.Set(file, results)
+	}
+}
+
+func (c *RecommendationCache) Set(file *storage.FileInfo, results []search.Result) {
+	if c == nil || file == nil {
+		return
+	}
+	key := normalizeRecommendationPath(file.Path)
+	if key == "" {
+		return
+	}
+	c.mu.Lock()
+	c.entries[key] = recommendationCacheEntry{
+		modTime: file.ModTime,
+		results: cloneSearchResults(results),
+	}
+	c.mu.Unlock()
+}
+
+func (c *RecommendationCache) Delete(path string) {
+	if c == nil {
+		return
+	}
+	key := normalizeRecommendationPath(path)
+	if key == "" {
+		return
+	}
+	c.mu.Lock()
+	delete(c.entries, key)
+	c.mu.Unlock()
+}
+
+func recommendForFile(cache *RecommendationCache, file *storage.FileInfo) []search.Result {
+	return cache.ForFile(file)
+}
+
+func computeRecommendations(store *storage.Store, searcher *search.Searcher, file *storage.FileInfo) []search.Result {
 	if file == nil || file.IsJournal {
 		return []search.Result{}
 	}
-	if getSearcher == nil {
-		return []search.Result{}
-	}
-	searcher := getSearcher()
 	if searcher == nil {
 		return []search.Result{}
 	}
@@ -50,6 +148,24 @@ func recommendForFile(store *storage.Store, getSearcher func() *search.Searcher,
 	}
 	results = search.MapPaths(results, store.Root())
 	return postProcessRecommendations(file.Path, results, recommendationLimit)
+}
+
+func cloneSearchResults(results []search.Result) []search.Result {
+	if len(results) == 0 {
+		return []search.Result{}
+	}
+	cloned := make([]search.Result, len(results))
+	copy(cloned, results)
+	return cloned
+}
+
+func normalizeRecommendationPath(path string) string {
+	path = normalizePathForComparison(path)
+	path = strings.TrimPrefix(path, "/")
+	if path == "." {
+		return ""
+	}
+	return path
 }
 
 func buildRecommendationQmdQuery(query string) string {

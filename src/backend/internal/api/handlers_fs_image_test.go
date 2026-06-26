@@ -19,7 +19,7 @@ func TestHandleFSPutRejectsMismatchedImageContentType(t *testing.T) {
 	}
 
 	router := chi.NewRouter()
-	router.Put("/api/fs/*", handleFSPut(store, func() {}))
+	router.Put("/api/fs/*", handleFSPut(store, func(paths ...string) {}))
 
 	req := httptest.NewRequest(http.MethodPut, "/api/fs/_attachments/pic.png", bytes.NewReader([]byte("not a png")))
 	req.Header.Set("Content-Type", "image/heic")
