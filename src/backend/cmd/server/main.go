@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"sync/atomic"
 
+	"duffel/pkg/duffellib"
+	"duffel/pkg/duffellib/search"
 	"duffel/src/backend/internal/api"
 	"duffel/src/backend/internal/config"
-	"duffel/src/backend/internal/search"
-	"duffel/src/backend/internal/storage"
 )
 
 func localIP() string {
@@ -29,54 +29,62 @@ func localIP() string {
 func main() {
 	cfg := config.Load()
 
-	store, err := storage.NewStore(cfg.DataDir)
+	workspace, err := duffellib.Open(duffellib.Options{
+		Root:         cfg.DataDir,
+		Collection:   "duffel",
+		EnableSearch: true,
+	})
 	if err != nil {
-		log.Fatalf("Failed to initialize storage: %v", err)
+		log.Printf("search: could not configure collection: %v", err)
+		log.Printf("search: continuing without initial search setup; run 'pnpm install' to provision search dependencies, then restart the server to enable search")
+		workspace, err = duffellib.Open(duffellib.Options{
+			Root:       cfg.DataDir,
+			Collection: "duffel",
+		})
+		if err != nil {
+			log.Fatalf("Failed to initialize workspace: %v", err)
+		}
 	}
-
-	if err := search.EnsureCollection("duffel", cfg.DataDir); err != nil {
-		log.Printf("qmd: could not configure collection: %v", err)
-		log.Printf("qmd: run 'pnpm install' to provision vendored qmd, then restart the server to enable search")
-	}
+	store := workspace.Store()
 
 	var searcherPtr atomic.Pointer[search.Searcher]
 
 	// Try to open searcher immediately (DB may exist from a previous run)
 	if s, err := search.NewSearcher(); err == nil {
-		log.Printf("qmd: search enabled (using %s)", "~/.cache/qmd/index.sqlite")
+		log.Printf("search: enabled")
 		searcherPtr.Store(s)
 	} else {
-		log.Printf("qmd: search not yet available: %v", err)
+		log.Printf("search: not yet available: %v", err)
 	}
 
 	// Start background indexing; when done, open/reopen the searcher
-	reindexer := search.NewReindexScheduler("duffel", func(err error) {
+	reindexer := search.NewReindexScheduler(workspace.Collection(), func(err error) {
 		if err != nil {
-			log.Printf("qmd: indexing failed: %v", err)
+			log.Printf("search: indexing failed: %v", err)
 			return
 		}
-		log.Printf("qmd: indexing complete")
+		log.Printf("search: indexing complete")
 		s, err := search.NewSearcher()
 		if err != nil {
-			log.Printf("qmd: failed to open searcher after indexing: %v", err)
+			log.Printf("search: failed to open searcher after indexing: %v", err)
 			return
 		}
 		// Close old searcher if any
 		if old := searcherPtr.Swap(s); old != nil {
 			_ = old.Close()
 		}
-		log.Printf("qmd: search enabled (using %s)", "~/.cache/qmd/index.sqlite")
+		log.Printf("search: enabled")
 	})
 	if err := reindexer.Trigger(); err != nil {
-		log.Printf("qmd: background indexing not started: %v", err)
+		log.Printf("search: background indexing not started: %v", err)
 	} else {
-		log.Printf("qmd: background indexing started")
+		log.Printf("search: background indexing started")
 	}
 
 	getSearcher := func() *search.Searcher { return searcherPtr.Load() }
 	onContentChanged := func() {
 		if err := reindexer.Trigger(); err != nil {
-			log.Printf("qmd: background indexing not started after content mutation: %v", err)
+			log.Printf("search: background indexing not started after content mutation: %v", err)
 		}
 	}
 	router := api.NewRouter(store, getSearcher, onContentChanged, cfg.FrontendDir)

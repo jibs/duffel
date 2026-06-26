@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"duffel/src/backend/internal/search"
-	"duffel/src/backend/internal/storage"
+	"duffel/pkg/duffellib/search"
+	"duffel/pkg/duffellib/storage"
 )
 
 func handleSearch(store *storage.Store, getSearcher func() *search.Searcher) http.HandlerFunc {

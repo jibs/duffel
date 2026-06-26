@@ -12,7 +12,7 @@ import (
 	"time"
 	"unicode"
 
-	"duffel/src/backend/internal/storage"
+	"duffel/pkg/duffellib/storage"
 )
 
 // dataURIRe matches markdown image tags with embedded data URIs.

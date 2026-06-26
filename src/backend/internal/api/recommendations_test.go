@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"duffel/src/backend/internal/search"
+	"duffel/pkg/duffellib/search"
 )
 
 func TestBuildRecommendationQueryStripsFrontMatterAndCapsBody(t *testing.T) {

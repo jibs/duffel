@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"duffel/src/backend/internal/search"
+	"duffel/pkg/duffellib/search"
 )
 
 func TestParseSearchFields(t *testing.T) {

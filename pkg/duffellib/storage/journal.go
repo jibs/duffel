@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"duffel/src/backend/internal/markdown"
+	"duffel/pkg/duffellib/markdown"
 )
 
 const journalFrontMatter = "---\ntype: journal\n---\n\n"

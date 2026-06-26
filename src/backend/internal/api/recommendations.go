@@ -6,8 +6,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"duffel/src/backend/internal/search"
-	"duffel/src/backend/internal/storage"
+	"duffel/pkg/duffellib/search"
+	"duffel/pkg/duffellib/storage"
 )
 
 const (

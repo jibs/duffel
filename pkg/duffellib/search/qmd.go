@@ -28,7 +28,7 @@ const (
 	collectionMask              = "**/*.{md,html}"
 )
 
-// Result represents a single search result from qmd.
+// Result represents a single search result.
 type Result struct {
 	Path       string          `json:"path"`
 	Title      string          `json:"title"`
@@ -55,7 +55,7 @@ type SearchOptions struct {
 	SkipRerank     bool
 }
 
-// HybridSearchError indicates why hybrid qmd query execution failed.
+// HybridSearchError indicates why hybrid search execution failed.
 type HybridSearchError struct {
 	Reason string
 	Err    error
@@ -86,7 +86,7 @@ func (e *HybridSearchError) Unwrap() error {
 	return e.Err
 }
 
-// Searcher queries qmd via CLI (hybrid) and falls back to direct SQLite BM25.
+// Searcher queries the workspace search index.
 type Searcher struct {
 	db           *sql.DB
 	findQmd      func() (string, error)
@@ -96,8 +96,8 @@ type Searcher struct {
 	hybridSlots  chan struct{}
 }
 
-// NewSearcher opens the qmd index database read-only.
-// Returns an error if the database file doesn't exist (qmd hasn't indexed yet).
+// NewSearcher opens the search index database read-only.
+// Returns an error if the database file does not exist yet.
 func NewSearcher() (*Searcher, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -106,18 +106,18 @@ func NewSearcher() (*Searcher, error) {
 
 	dbPath := filepath.Join(home, ".cache", "qmd", "index.sqlite")
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("qmd database not found at %s — run qmd to index your files first", dbPath)
+		return nil, fmt.Errorf("search database not found at %s — refresh the search index first", dbPath)
 	}
 
 	db, err := sql.Open("sqlite", dbPath+"?mode=ro")
 	if err != nil {
-		return nil, fmt.Errorf("failed to open qmd database: %w", err)
+		return nil, fmt.Errorf("failed to open search database: %w", err)
 	}
 
 	// Verify the DB is readable
 	if err := db.Ping(); err != nil {
 		_ = db.Close()
-		return nil, fmt.Errorf("qmd database not accessible: %w", err)
+		return nil, fmt.Errorf("search database not accessible: %w", err)
 	}
 
 	return &Searcher{
@@ -145,7 +145,7 @@ func (s *Searcher) ensureDefaults() {
 	})
 }
 
-// Search runs hybrid qmd search by default and falls back to BM25 on failure.
+// Search runs hybrid search by default and falls back to lexical search on failure.
 func (s *Searcher) Search(opts SearchOptions) ([]Result, error) {
 	s.ensureDefaults()
 	opts = normalizeSearchOptions(opts)
@@ -677,7 +677,7 @@ func (s *Searcher) populateModifiedAt(collection string, results []Result) error
 	return nil
 }
 
-// searchBM25 runs an FTS5 BM25 query against the qmd index.
+// searchBM25 runs an FTS5 BM25 query against the search index.
 func (s *Searcher) searchBM25(opts SearchOptions) ([]Result, error) {
 	query := `
 		SELECT d.path, d.title,
@@ -714,7 +714,7 @@ func (s *Searcher) searchBM25(opts SearchOptions) ([]Result, error) {
 }
 
 // findQmd locates the vendored qmd binary in this repository.
-// It checks DUFFEL_QMD_PATH first, then local node_modules locations.
+// It checks the backend override first, then local node_modules locations.
 func findQmd() (string, error) {
 	if override := strings.TrimSpace(os.Getenv("DUFFEL_QMD_PATH")); override != "" {
 		abs, err := filepath.Abs(override)
@@ -740,36 +740,33 @@ func findQmd() (string, error) {
 			}
 		}
 	}
-	return "", fmt.Errorf("qmd not found in vendored paths; run `pnpm install` or set DUFFEL_QMD_PATH")
+	return "", fmt.Errorf("search executable not found in vendored paths; run `pnpm install` or set DUFFEL_QMD_PATH")
 }
 
-// StartIndexing runs `qmd update` followed by `qmd embed` in the background to
-// re-index all collections and refresh vector embeddings for hybrid search.
-// It returns immediately once `qmd update` has started; the onDone callback is
+// StartIndexing refreshes the search index in the background.
+// It returns immediately once indexing has started; the onDone callback is
 // called when both steps finish, or with the first error encountered.
 //
-// qmd update only maintains the BM25 index — without the subsequent embed step
-// newly written or edited documents never become available to semantic (hybrid)
-// search. qmd embed is incremental, so it only embeds documents that changed
-// since the last run.
+// The refresh updates both lexical and semantic search data when supported by
+// the configured backend.
 func StartIndexing(collection string, onDone func(error)) error {
 	qmdPath, err := findQmd()
 	if err != nil {
-		return fmt.Errorf("qmd not found (checked DUFFEL_QMD_PATH and vendored node_modules): %w", err)
+		return fmt.Errorf("search backend not found: %w", err)
 	}
 
 	updateCmd := exec.Command(qmdPath, "update")
 	if err := updateCmd.Start(); err != nil {
-		return fmt.Errorf("failed to start qmd update: %w", err)
+		return fmt.Errorf("failed to start search index update: %w", err)
 	}
 
 	go func() {
 		if err := updateCmd.Wait(); err != nil {
-			onDone(fmt.Errorf("qmd update failed: %w", err))
+			onDone(fmt.Errorf("search index update failed: %w", err))
 			return
 		}
 		if out, err := exec.Command(qmdPath, "embed").CombinedOutput(); err != nil {
-			onDone(fmt.Errorf("qmd embed failed: %w\n%s", err, out))
+			onDone(fmt.Errorf("search embedding update failed: %w\n%s", err, out))
 			return
 		}
 		onDone(nil)
@@ -804,13 +801,12 @@ func MapPaths(results []Result, storeRoot string) []Result {
 	return mapped
 }
 
-// EnsureCollection uses `qmd collection add` to ensure a collection exists
-// pointing at dataDir with markdown and HTML files. If the collection already exists,
-// qmd handles it as a no-op or update.
+// EnsureCollection ensures a searchable collection exists for dataDir with
+// markdown and HTML files.
 func EnsureCollection(name, dataDir string) error {
 	qmdPath, err := findQmd()
 	if err != nil {
-		return fmt.Errorf("qmd not found (checked DUFFEL_QMD_PATH and vendored node_modules): %w", err)
+		return fmt.Errorf("search backend not found: %w", err)
 	}
 
 	absDataDir, err := filepath.Abs(dataDir)
@@ -828,15 +824,15 @@ func EnsureCollection(name, dataDir string) error {
 		// Repair that state so Duffel's fixed collection filter keeps working.
 		if strings.Contains(string(out), "already exists") {
 			if repairErr := repairQmdCollectionName(name, absDataDir, collectionMask); repairErr != nil {
-				return fmt.Errorf("qmd collection already exists but repair failed: %w\n%s", repairErr, out)
+				return fmt.Errorf("search collection already exists but repair failed: %w\n%s", repairErr, out)
 			}
 			return nil
 		}
-		return fmt.Errorf("qmd collection add failed: %w\n%s", err, out)
+		return fmt.Errorf("search collection add failed: %w\n%s", err, out)
 	}
 
 	if repairErr := repairQmdCollectionName(name, absDataDir, collectionMask); repairErr != nil {
-		return fmt.Errorf("qmd collection repair failed: %w", repairErr)
+		return fmt.Errorf("search collection repair failed: %w", repairErr)
 	}
 	return nil
 }

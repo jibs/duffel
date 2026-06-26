@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"duffel/src/backend/internal/storage"
+	"duffel/pkg/duffellib/storage"
 )
 
 func handleJournal(store *storage.Store, onContentChanged func()) http.HandlerFunc {

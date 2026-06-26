@@ -210,10 +210,28 @@ Main routes:
 - `GET|PUT|POST|DELETE /api/fs/*` for filesystem-backed notes and directories.
 - `POST /api/archive/*` and `POST /api/unarchive/*` for archive moves.
 - `POST /api/journal/*` and `POST /api/journal/*/append` for journal files.
-- `GET /api/search?q=<query>` for qmd-backed search.
+- `GET /api/search?q=<query>` for workspace search.
 - `GET|POST|DELETE /api/mcp/tokens` for MCP bearer token management.
 - `GET|POST /mcp` for the MCP server.
 - `GET|POST /oauth/setup`, `/oauth/authorize`, `/oauth/token`, and `/oauth/register` for auth.
+
+## Duffel Lib
+
+Duffel's low-level knowledge workspace capabilities are available as Go
+packages under `pkg/duffellib`.
+
+Use `duffellib.Open` when another project needs the same safe disk-backed
+document behavior as Duffel:
+
+- root-confined path resolution with symlink escape checks
+- validated text writes, verified read-after-write, and allowlisted binary image writes
+- journal creation and locked journal append
+- archive/unarchive operations
+- first-class workspace search through `Workspace.Search`
+
+Search is part of the library API. The concrete search backend is a Duffel
+implementation detail; callers should use `duffellib.Workspace` and
+`duffellib/search.SearchOptions` rather than shelling out to indexing tools.
 
 ## Development
 

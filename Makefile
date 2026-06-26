@@ -3,6 +3,8 @@ SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
 DEPLOY_HOST ?= deploy@example-host
+GOLANGCI_LINT ?= $(shell command -v golangci-lint 2>/dev/null || printf '%s' 'go run github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8')
+GOLANGCI_LINT_CACHE ?= /private/tmp/duffel-golangci-lint-cache
 
 ifneq (,$(wildcard .env))
 include .env
@@ -43,7 +45,7 @@ build:
 test: test-unit test-integration test-e2e
 
 test-unit:
-	pkgs="$$( { go list ./src/backend/internal/... 2>/dev/null || true; go list ./tests/unit/backend/... 2>/dev/null || true; } | sort -u )"; \
+	pkgs="$$( { go list ./pkg/duffellib/... 2>/dev/null || true; go list ./src/backend/internal/... 2>/dev/null || true; go list ./tests/unit/backend/... 2>/dev/null || true; } | sort -u )"; \
 	unit_pkgs="$$(printf '%s\n' "$$pkgs" | rg -v '/api$$' || true)"; \
 	if [ -z "$$unit_pkgs" ]; then \
 		echo "No unit test packages found"; \
@@ -70,26 +72,26 @@ test-live:
 	go test ./tests/live/...
 
 fmt:
-	gofmt -w ./src/backend/ ./tests/
+	gofmt -w ./pkg/ ./src/backend/ ./tests/
 	node node_modules/eslint/bin/eslint.js --fix src/frontend/ts/
 
 fmt-check:
-	if [ -n "$$(gofmt -l ./src/backend/ ./tests/)" ]; then \
+	if [ -n "$$(gofmt -l ./pkg/ ./src/backend/ ./tests/)" ]; then \
 		echo "Go files not formatted:"; \
-		gofmt -l ./src/backend/ ./tests/; \
+		gofmt -l ./pkg/ ./src/backend/ ./tests/; \
 		exit 1; \
 	fi
 
 lint: lint-go lint-js
 
 lint-go:
-	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8 run ./src/backend/...
+	GOLANGCI_LINT_CACHE=$(GOLANGCI_LINT_CACHE) $(GOLANGCI_LINT) run ./pkg/... ./src/backend/...
 
 lint-js:
 	node node_modules/eslint/bin/eslint.js src/frontend/ts/
 
 typecheck:
-	pkgs="$$( { go list ./src/backend/... 2>/dev/null || true; go list ./tests/unit/backend/... 2>/dev/null || true; go list ./tests/integration/backend/... 2>/dev/null || true; } | sort -u )"; \
+	pkgs="$$( { go list ./pkg/... 2>/dev/null || true; go list ./src/backend/... 2>/dev/null || true; go list ./tests/unit/backend/... 2>/dev/null || true; go list ./tests/integration/backend/... 2>/dev/null || true; } | sort -u )"; \
 	if [ -z "$$pkgs" ]; then \
 		echo "No packages found for typecheck"; \
 		exit 1; \

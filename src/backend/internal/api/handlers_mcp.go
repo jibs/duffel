@@ -11,8 +11,8 @@ import (
 	"sort"
 	"strings"
 
-	"duffel/src/backend/internal/search"
-	"duffel/src/backend/internal/storage"
+	"duffel/pkg/duffellib/search"
+	"duffel/pkg/duffellib/storage"
 )
 
 type mcpRPCRequest struct {

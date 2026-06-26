@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"duffel/src/backend/internal/storage"
+	"duffel/pkg/duffellib/storage"
 )
 
 func handleArchive(store *storage.Store, onContentChanged func()) http.HandlerFunc {

@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
+	"duffel/pkg/duffellib/search"
+	"duffel/pkg/duffellib/storage"
 	"duffel/src/backend/internal/api"
-	"duffel/src/backend/internal/search"
-	"duffel/src/backend/internal/storage"
 )
 
 func setupAuthServer(t *testing.T) (*httptest.Server, *storage.Store) {

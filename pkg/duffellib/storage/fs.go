@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"duffel/src/backend/internal/markdown"
+	"duffel/pkg/duffellib/markdown"
 )
 
 var (

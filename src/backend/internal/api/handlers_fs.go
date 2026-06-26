@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"duffel/src/backend/internal/markdown"
-	"duffel/src/backend/internal/search"
-	"duffel/src/backend/internal/storage"
+	"duffel/pkg/duffellib/markdown"
+	"duffel/pkg/duffellib/search"
+	"duffel/pkg/duffellib/storage"
 
 	"github.com/go-chi/chi/v5"
 )

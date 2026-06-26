@@ -6,8 +6,8 @@ import (
 	"os"
 	"testing"
 
-	"duffel/src/backend/internal/search"
-	"duffel/src/backend/internal/storage"
+	"duffel/pkg/duffellib/search"
+	"duffel/pkg/duffellib/storage"
 )
 
 var mcpPNG = []byte{0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x01, 0x02, 0x03}

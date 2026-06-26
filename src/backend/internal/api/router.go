@@ -6,9 +6,9 @@ import (
 	"os"
 	"strings"
 
+	"duffel/pkg/duffellib/search"
+	"duffel/pkg/duffellib/storage"
 	"duffel/src/backend/internal/auth"
-	"duffel/src/backend/internal/search"
-	"duffel/src/backend/internal/storage"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"

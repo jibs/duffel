@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"duffel/src/backend/internal/storage"
+	"duffel/pkg/duffellib/storage"
 
 	"github.com/go-chi/chi/v5"
 )

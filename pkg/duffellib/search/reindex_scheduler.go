@@ -2,7 +2,7 @@ package search
 
 import "sync"
 
-// ReindexScheduler coalesces repeated reindex triggers so only one qmd update
+// ReindexScheduler coalesces repeated reindex triggers so only one search update
 // runs at a time, with at most one pending rerun.
 type ReindexScheduler struct {
 	mu          sync.Mutex
@@ -12,7 +12,7 @@ type ReindexScheduler struct {
 	onCompleted func(error)
 }
 
-// NewReindexScheduler creates a scheduler backed by qmd StartIndexing.
+// NewReindexScheduler creates a scheduler backed by StartIndexing.
 func NewReindexScheduler(collection string, onCompleted func(error)) *ReindexScheduler {
 	return &ReindexScheduler{
 		start: func(done func(error)) error {
