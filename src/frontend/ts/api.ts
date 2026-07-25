@@ -90,6 +90,24 @@ export interface TrustedDeviceCreateResponse {
   device: TrustedDeviceRecord;
 }
 
+export interface IllustrationDocument {
+  version: 1;
+  snapshot?: unknown;
+  mermaid?: string;
+}
+
+export interface IllustrationResponse {
+  path: string;
+  exists: boolean;
+  revision?: string;
+  updatedAt?: string;
+  document?: IllustrationDocument;
+}
+
+export interface IllustrationConfig {
+  licenseKey: string;
+}
+
 const BASE = "/api";
 const BEARER_TOKEN_KEYS = ["duffel:mcp-management-token", "duffel:api-token"];
 
@@ -154,6 +172,27 @@ export function readFile(path: string): Promise<FileResponse> {
 
 export function writeFile(path: string, content: string): Promise<void> {
   return request<void>("PUT", `/fs/${path}`, { content });
+}
+
+export function readIllustration(path: string): Promise<IllustrationResponse> {
+  return request<IllustrationResponse>("GET", `/illustrations/${path}`);
+}
+
+export function writeIllustration(path: string, document: IllustrationDocument, revision = ""): Promise<IllustrationResponse> {
+  const opts: RequestInit = {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...bearerHeader(),
+      ...(revision ? { "If-Match": revision } : {}),
+    },
+    body: JSON.stringify(document),
+  };
+  return fetch(`${BASE}/illustrations/${path}`, opts).then(parseJSONResponse<IllustrationResponse>);
+}
+
+export function readIllustrationConfig(): Promise<IllustrationConfig> {
+  return request<IllustrationConfig>("GET", "/illustration-config");
 }
 
 /** Uploads raw image bytes to the workspace at `path`. */

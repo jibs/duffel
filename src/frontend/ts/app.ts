@@ -12,6 +12,7 @@ import {
 import { loadTree, highlightActive } from "./browser.js";
 import { checkEditorBackendChange, openEditor } from "./editor.js";
 import { showJournal } from "./journal.js";
+import { updateIllustrationUI } from "./illustrations.js";
 import { showMCPConnector } from "./mcp.js";
 import { attachHTMLFrameLinkBridge, clearImageCache, parseRouteHash, renderFileContent, routeHash, scrollHTMLFrameToFragment, scrollToFragment } from "./render.js";
 import { isSearchVisible, refreshSearch } from "./search.js";
@@ -100,11 +101,13 @@ async function showFile(path: string, fragment = ""): Promise<void> {
     if (file.kind === "image") {
       cleanupRenderedFile();
       hideFileRecommendations();
+      await updateIllustrationUI("", null);
       await showImage(file);
     } else if (file.isJournal) {
       cleanupRenderedFile();
       hideFileRecommendations();
       showJournal(path, file.content);
+      await updateIllustrationUI(path, "journal");
       showView("journal");
     } else {
       cleanupRenderedFile();
@@ -122,6 +125,7 @@ async function showFile(path: string, fragment = ""): Promise<void> {
         });
       }
       renderFileRecommendations(path, file.recommended || []);
+      await updateIllustrationUI(path, "file");
       showView("file");
     }
     highlightActive(path);
@@ -169,6 +173,7 @@ async function showDirectory(path: string): Promise<void> {
     currentFile = null;
     cleanupRenderedFile();
     hideFileRecommendations();
+    await updateIllustrationUI("", null);
     updateBreadcrumb(path);
 
     const entries = (dir.entries || []).sort((a, b) => {

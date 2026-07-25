@@ -219,6 +219,12 @@ func mcpTools() []map[string]any {
 		toolDef("duffel_unarchive", "Unarchive file", objectWithRequired(map[string]any{"path": map[string]any{"type": "string"}}, "path")),
 		toolDef("duffel_journal_create", "Create journal", objectWithRequired(map[string]any{"path": map[string]any{"type": "string"}, "content": map[string]any{"type": "string"}}, "path")),
 		toolDef("duffel_journal_append", "Append journal entry", objectWithRequired(map[string]any{"path": map[string]any{"type": "string"}, "content": map[string]any{"type": "string"}}, "path", "content")),
+		toolDef("duffel_diagram_read", "Read the optional tldraw illustration attached to a note", objectWithRequired(map[string]any{"path": map[string]any{"type": "string", "description": "Path of the note, not an internal sidecar path"}}, "path")),
+		toolDef("duffel_diagram_set", "Create or replace a note's editable tldraw diagram from Mermaid source. Supported Mermaid types include flowcharts, sequence diagrams, state diagrams, and mind maps.", objectWithRequired(map[string]any{
+			"path":    map[string]any{"type": "string", "description": "Path of the note to illustrate"},
+			"mermaid": map[string]any{"type": "string", "description": "Complete Mermaid diagram source"},
+		}, "path", "mermaid")),
+		toolDef("duffel_diagram_delete", "Delete the optional tldraw illustration attached to a note", objectWithRequired(map[string]any{"path": map[string]any{"type": "string", "description": "Path of the note"}}, "path")),
 		toolDef("duffel_search", "Search notes", map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -436,6 +442,40 @@ func runMCPTool(store *storage.Store, getSearcher func() *search.Searcher, onCon
 			return nil, err
 		}
 		return file, nil
+
+	case "duffel_diagram_read":
+		path := argString(args, "path", "")
+		if path == "" {
+			return nil, fmt.Errorf("path is required")
+		}
+		return readIllustration(store, path)
+
+	case "duffel_diagram_set":
+		path := argString(args, "path", "")
+		mermaid := strings.TrimSpace(argString(args, "mermaid", ""))
+		if path == "" || mermaid == "" {
+			return nil, fmt.Errorf("path and mermaid are required")
+		}
+		result, err := writeIllustration(store, path, illustrationDocument{
+			Version: illustrationVersion,
+			Mermaid: mermaid,
+		}, "")
+		if err != nil {
+			return nil, err
+		}
+		triggerContentChanged(onContentChanged, path)
+		return result, nil
+
+	case "duffel_diagram_delete":
+		path := argString(args, "path", "")
+		if path == "" {
+			return nil, fmt.Errorf("path is required")
+		}
+		if err := deleteIllustration(store, path); err != nil {
+			return nil, err
+		}
+		triggerContentChanged(onContentChanged, path)
+		return map[string]string{"status": "deleted", "path": path}, nil
 
 	case "duffel_search", "search":
 		query := argString(args, "query", "")

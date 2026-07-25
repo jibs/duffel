@@ -83,6 +83,10 @@ func NewRouterWithRecommendationCache(store *storage.Store, getSearcher func() *
 			r.Put("/fs/*", handleFSPut(store, notifyContentChanged))
 			r.Delete("/fs/*", handleFSDelete(store, notifyContentChanged))
 			r.Post("/fs/*", handleFSPost(store, notifyContentChanged))
+			r.Method(http.MethodGet, "/illustrations/*", handleIllustration(store, notifyContentChanged))
+			r.Method(http.MethodPut, "/illustrations/*", handleIllustration(store, notifyContentChanged))
+			r.Method(http.MethodDelete, "/illustrations/*", handleIllustration(store, notifyContentChanged))
+			r.Get("/illustration-config", handleIllustrationConfig())
 
 			r.Post("/move/*", handleFSMove(store, notifyContentChanged))
 

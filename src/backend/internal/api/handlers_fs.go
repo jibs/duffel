@@ -308,6 +308,10 @@ func handleFSDelete(store *storage.Store, onContentChanged ContentChangeNotifier
 			writeError(w, http.StatusInternalServerError, err.Error(), urlPath)
 			return
 		}
+		if err := deleteIllustrationsForPath(store, urlPath, r.URL.Query().Get("recursive") == "true"); err != nil {
+			writeError(w, http.StatusInternalServerError, "deleted note but failed to delete its illustration: "+err.Error(), urlPath)
+			return
+		}
 		triggerContentChanged(onContentChanged, urlPath)
 
 		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted", "path": urlPath})
@@ -345,6 +349,11 @@ func handleFSMove(store *storage.Store, onContentChanged ContentChangeNotifier) 
 				return
 			}
 			writeError(w, http.StatusInternalServerError, err.Error(), srcPath)
+			return
+		}
+		if err := moveIllustration(store, srcPath, body.Destination); err != nil {
+			_ = store.Move(body.Destination, srcPath)
+			writeError(w, http.StatusInternalServerError, "failed to move attached illustration: "+err.Error(), srcPath)
 			return
 		}
 		triggerContentChanged(onContentChanged, srcPath, body.Destination)
