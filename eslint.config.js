@@ -4,7 +4,7 @@ import globals from "globals";
 export default tseslint.config(
   ...tseslint.configs.recommended,
   {
-    files: ["src/frontend/ts/**/*.ts"],
+    files: ["src/frontend/ts/**/*.ts", "src/frontend/drawing/**/*.tsx"],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "module",

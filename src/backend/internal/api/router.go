@@ -14,7 +14,19 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
+type ContentChangeNotifier func(paths ...string)
+
 func NewRouter(store *storage.Store, getSearcher func() *search.Searcher, onContentChanged func(), frontendDir string) http.Handler {
+	var notifier ContentChangeNotifier
+	if onContentChanged != nil {
+		notifier = func(paths ...string) {
+			onContentChanged()
+		}
+	}
+	return NewRouterWithRecommendationCache(store, getSearcher, notifier, frontendDir, NewRecommendationCache())
+}
+
+func NewRouterWithRecommendationCache(store *storage.Store, getSearcher func() *search.Searcher, onContentChanged ContentChangeNotifier, frontendDir string, recommendationCache *RecommendationCache) http.Handler {
 	r := chi.NewRouter()
 	allowedOrigins := parseAllowedOrigins(os.Getenv("DUFFEL_ALLOWED_ORIGINS"))
 	eventBroker := newEventBroker()
@@ -23,13 +35,13 @@ func NewRouter(store *storage.Store, getSearcher func() *search.Searcher, onCont
 		panic(fmt.Sprintf("initialize auth service: %v", err))
 	}
 	if onContentChanged == nil {
-		onContentChanged = func() {}
+		onContentChanged = func(paths ...string) {}
 	}
-	notifyContentChanged := func() {
-		onContentChanged()
+	notifyContentChanged := func(paths ...string) {
+		onContentChanged(paths...)
 		eventBroker.Broadcast()
 	}
-	startFilesystemChangeWatcher(store.Root(), notifyContentChanged)
+	startFilesystemChangeWatcher(store.Root(), func() { notifyContentChanged() })
 
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
@@ -52,8 +64,8 @@ func NewRouter(store *storage.Store, getSearcher func() *search.Searcher, onCont
 
 	r.Group(func(r chi.Router) {
 		r.Use(requireAuthMiddleware(authService, "/.well-known/oauth-protected-resource/mcp"))
-		r.Get("/mcp", handleMCP(store, getSearcher, notifyContentChanged))
-		r.Post("/mcp", handleMCP(store, getSearcher, notifyContentChanged))
+		r.Get("/mcp", handleMCP(store, getSearcher, notifyContentChanged, recommendationCache))
+		r.Post("/mcp", handleMCP(store, getSearcher, notifyContentChanged, recommendationCache))
 	})
 
 	// API routes
@@ -67,10 +79,14 @@ func NewRouter(store *storage.Store, getSearcher func() *search.Searcher, onCont
 		r.Group(func(r chi.Router) {
 			r.Use(requireAuthMiddleware(authService, "/.well-known/oauth-protected-resource"))
 
-			r.Get("/fs/*", handleFSGet(store, getSearcher))
+			r.Get("/fs/*", handleFSGet(store, recommendationCache))
 			r.Put("/fs/*", handleFSPut(store, notifyContentChanged))
 			r.Delete("/fs/*", handleFSDelete(store, notifyContentChanged))
 			r.Post("/fs/*", handleFSPost(store, notifyContentChanged))
+			r.Method(http.MethodGet, "/illustrations/*", handleIllustration(store, notifyContentChanged))
+			r.Method(http.MethodPut, "/illustrations/*", handleIllustration(store, notifyContentChanged))
+			r.Method(http.MethodDelete, "/illustrations/*", handleIllustration(store, notifyContentChanged))
+			r.Get("/illustration-config", handleIllustrationConfig())
 
 			r.Post("/move/*", handleFSMove(store, notifyContentChanged))
 

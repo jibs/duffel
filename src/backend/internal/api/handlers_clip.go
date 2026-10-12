@@ -28,7 +28,7 @@ type clipRequest struct {
 	URL         string `json:"url"`
 }
 
-func handleClip(store *storage.Store, onContentChanged func()) http.HandlerFunc {
+func handleClip(store *storage.Store, onContentChanged ContentChangeNotifier) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, 10*1024*1024)
 
@@ -112,7 +112,7 @@ func handleClip(store *storage.Store, onContentChanged func()) http.HandlerFunc 
 			return
 		}
 
-		triggerContentChanged(onContentChanged)
+		triggerContentChanged(onContentChanged, finalPath)
 
 		writeJSON(w, http.StatusCreated, map[string]string{"path": finalPath})
 	}

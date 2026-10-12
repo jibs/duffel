@@ -35,6 +35,7 @@ help:
 
 build-js:
 	pnpm tsc
+	pnpm exec esbuild src/frontend/drawing/illustration.tsx --bundle --format=esm --outfile=src/frontend/js/illustration.js --loader:.woff=file --loader:.woff2=file --loader:.svg=file --asset-names=../assets/[name]-[hash] --define:process.env.NODE_ENV='"production"'
 
 dev: build-js
 	go run ./src/backend/cmd/server
@@ -73,7 +74,7 @@ test-live:
 
 fmt:
 	gofmt -w ./pkg/ ./src/backend/ ./tests/
-	node node_modules/eslint/bin/eslint.js --fix src/frontend/ts/
+	node node_modules/eslint/bin/eslint.js --fix src/frontend/ts/ src/frontend/drawing/
 
 fmt-check:
 	if [ -n "$$(gofmt -l ./pkg/ ./src/backend/ ./tests/)" ]; then \
@@ -88,7 +89,7 @@ lint-go:
 	GOLANGCI_LINT_CACHE=$(GOLANGCI_LINT_CACHE) $(GOLANGCI_LINT) run ./pkg/... ./src/backend/...
 
 lint-js:
-	node node_modules/eslint/bin/eslint.js src/frontend/ts/
+	node node_modules/eslint/bin/eslint.js src/frontend/ts/ src/frontend/drawing/
 
 typecheck:
 	pkgs="$$( { go list ./pkg/... 2>/dev/null || true; go list ./src/backend/... 2>/dev/null || true; go list ./tests/unit/backend/... 2>/dev/null || true; go list ./tests/integration/backend/... 2>/dev/null || true; } | sort -u )"; \
@@ -97,7 +98,8 @@ typecheck:
 		exit 1; \
 	fi; \
 	go vet $$pkgs; \
-	pnpm tsc --noEmit
+	pnpm tsc --noEmit; \
+	pnpm tsc -p tsconfig.illustration.json
 
 ci: fmt-check lint typecheck build-js test release-audit
 

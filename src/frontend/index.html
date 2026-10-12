@@ -29,10 +29,12 @@
       <div id="view-file" class="view hidden">
         <div id="file-toolbar">
           <button id="btn-edit" class="primary">Edit</button>
+          <button id="btn-illustrate">Illustrate</button>
           <button id="btn-archive">Archive</button>
           <button id="btn-delete" class="danger">Delete</button>
         </div>
         <div id="file-rendered"></div>
+        <section id="file-illustration" class="illustration-preview hidden"></section>
         <section id="file-recommended" class="hidden">
           <h3>Recommended Content</h3>
           <div id="file-recommended-list"></div>
@@ -59,7 +61,11 @@
         </div>
       </div>
       <div id="view-journal" class="view hidden">
+        <div id="journal-toolbar">
+          <button id="btn-journal-illustrate">Illustrate</button>
+        </div>
         <div id="journal-entries"></div>
+        <section id="journal-illustration" class="illustration-preview hidden"></section>
         <div id="journal-append">
           <textarea id="journal-input" placeholder="Add a new entry..."></textarea>
           <button id="btn-journal-append">Append</button>

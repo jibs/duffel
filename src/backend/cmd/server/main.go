@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"sync"
 	"sync/atomic"
 
 	"duffel/pkg/duffellib"
@@ -48,6 +49,34 @@ func main() {
 	store := workspace.Store()
 
 	var searcherPtr atomic.Pointer[search.Searcher]
+	recommendationCache := api.NewRecommendationCache()
+	var recommendationMu sync.Mutex
+	pendingRecommendationPaths := map[string]struct{}{}
+
+	queueRecommendationPaths := func(paths ...string) {
+		recommendationMu.Lock()
+		defer recommendationMu.Unlock()
+		for _, path := range paths {
+			if path == "" {
+				continue
+			}
+			pendingRecommendationPaths[path] = struct{}{}
+		}
+	}
+
+	takeRecommendationPaths := func() []string {
+		recommendationMu.Lock()
+		defer recommendationMu.Unlock()
+		if len(pendingRecommendationPaths) == 0 {
+			return nil
+		}
+		paths := make([]string, 0, len(pendingRecommendationPaths))
+		for path := range pendingRecommendationPaths {
+			paths = append(paths, path)
+		}
+		pendingRecommendationPaths = map[string]struct{}{}
+		return paths
+	}
 
 	// Try to open searcher immediately (DB may exist from a previous run)
 	if s, err := search.NewSearcher(); err == nil {
@@ -74,6 +103,11 @@ func main() {
 			_ = old.Close()
 		}
 		log.Printf("search: enabled")
+		paths := takeRecommendationPaths()
+		if len(paths) > 0 {
+			recommendationCache.MaterializePaths(store, s, paths)
+			log.Printf("recommendations: materialized %d changed path(s)", len(paths))
+		}
 	})
 	if err := reindexer.Trigger(); err != nil {
 		log.Printf("search: background indexing not started: %v", err)
@@ -82,12 +116,13 @@ func main() {
 	}
 
 	getSearcher := func() *search.Searcher { return searcherPtr.Load() }
-	onContentChanged := func() {
+	onContentChanged := func(paths ...string) {
+		queueRecommendationPaths(paths...)
 		if err := reindexer.Trigger(); err != nil {
 			log.Printf("search: background indexing not started after content mutation: %v", err)
 		}
 	}
-	router := api.NewRouter(store, getSearcher, onContentChanged, cfg.FrontendDir)
+	router := api.NewRouterWithRecommendationCache(store, getSearcher, onContentChanged, cfg.FrontendDir, recommendationCache)
 
 	addr := fmt.Sprintf("%s:%s", cfg.Host, cfg.Port)
 	log.Printf("duffel starting (data: %s, frontend: %s)", cfg.DataDir, cfg.FrontendDir)

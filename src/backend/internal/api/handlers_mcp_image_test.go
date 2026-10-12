@@ -18,7 +18,7 @@ func TestMCPWriteImageBase64(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = runMCPTool(store, func() *search.Searcher { return nil }, func() {}, mcpToolCallParams{
+	_, err = runMCPTool(store, func() *search.Searcher { return nil }, func(paths ...string) {}, NewRecommendationCache(), mcpToolCallParams{
 		Name: "duffel_write",
 		Arguments: map[string]any{
 			"path":     "_attachments/pic.png",
@@ -49,7 +49,7 @@ func TestMCPWriteImageBase64RejectsNonImage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = runMCPTool(store, func() *search.Searcher { return nil }, func() {}, mcpToolCallParams{
+	_, err = runMCPTool(store, func() *search.Searcher { return nil }, func(paths ...string) {}, NewRecommendationCache(), mcpToolCallParams{
 		Name: "duffel_write",
 		Arguments: map[string]any{
 			"path":     "notes/evil.md",
@@ -71,7 +71,7 @@ func TestMCPReadImageReturnsMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := runMCPTool(store, func() *search.Searcher { return nil }, func() {}, mcpToolCallParams{
+	out, err := runMCPTool(store, func() *search.Searcher { return nil }, func(paths ...string) {}, NewRecommendationCache(), mcpToolCallParams{
 		Name:      "duffel_read",
 		Arguments: map[string]any{"path": "_attachments/pic.png"},
 	})

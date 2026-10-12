@@ -39,7 +39,7 @@ type mcpToolCallParams struct {
 	Arguments map[string]any `json:"arguments"`
 }
 
-func handleMCP(store *storage.Store, getSearcher func() *search.Searcher, onContentChanged func()) http.HandlerFunc {
+func handleMCP(store *storage.Store, getSearcher func() *search.Searcher, onContentChanged ContentChangeNotifier, recommendationCache *RecommendationCache) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("mcp: request method=%s path=%s remote=%s", r.Method, r.URL.Path, r.RemoteAddr)
 		if r.Method == http.MethodGet {
@@ -101,7 +101,7 @@ func handleMCP(store *storage.Store, getSearcher func() *search.Searcher, onCont
 				return
 			}
 			log.Printf("mcp: tools/call name=%s arg_keys=%s remote=%s", params.Name, mcpArgKeys(params.Arguments), r.RemoteAddr)
-			result, err := runMCPTool(store, getSearcher, onContentChanged, params)
+			result, err := runMCPTool(store, getSearcher, onContentChanged, recommendationCache, params)
 			if err != nil {
 				log.Printf("mcp: tools/call error name=%s remote=%s err=%v", params.Name, r.RemoteAddr, err)
 				writeMCPResult(w, decodeMCPID(req.ID), mcpToolError(err.Error()))
@@ -219,6 +219,12 @@ func mcpTools() []map[string]any {
 		toolDef("duffel_unarchive", "Unarchive file", objectWithRequired(map[string]any{"path": map[string]any{"type": "string"}}, "path")),
 		toolDef("duffel_journal_create", "Create journal", objectWithRequired(map[string]any{"path": map[string]any{"type": "string"}, "content": map[string]any{"type": "string"}}, "path")),
 		toolDef("duffel_journal_append", "Append journal entry", objectWithRequired(map[string]any{"path": map[string]any{"type": "string"}, "content": map[string]any{"type": "string"}}, "path", "content")),
+		toolDef("duffel_diagram_read", "Read the optional tldraw illustration attached to a note", objectWithRequired(map[string]any{"path": map[string]any{"type": "string", "description": "Path of the note, not an internal sidecar path"}}, "path")),
+		toolDef("duffel_diagram_set", "Create or replace a note's editable tldraw diagram from Mermaid source. Supported Mermaid types include flowcharts, sequence diagrams, state diagrams, and mind maps.", objectWithRequired(map[string]any{
+			"path":    map[string]any{"type": "string", "description": "Path of the note to illustrate"},
+			"mermaid": map[string]any{"type": "string", "description": "Complete Mermaid diagram source"},
+		}, "path", "mermaid")),
+		toolDef("duffel_diagram_delete", "Delete the optional tldraw illustration attached to a note", objectWithRequired(map[string]any{"path": map[string]any{"type": "string", "description": "Path of the note"}}, "path")),
 		toolDef("duffel_search", "Search notes", map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -255,7 +261,7 @@ func objectWithRequired(properties map[string]any, required ...string) map[strin
 	}
 }
 
-func runMCPTool(store *storage.Store, getSearcher func() *search.Searcher, onContentChanged func(), params mcpToolCallParams) (any, error) {
+func runMCPTool(store *storage.Store, getSearcher func() *search.Searcher, onContentChanged ContentChangeNotifier, recommendationCache *RecommendationCache, params mcpToolCallParams) (any, error) {
 	name := strings.TrimSpace(params.Name)
 	args := params.Arguments
 	if args == nil {
@@ -304,7 +310,7 @@ func runMCPTool(store *storage.Store, getSearcher func() *search.Searcher, onCon
 		if err != nil {
 			return nil, mcpStorageError(path, err)
 		}
-		recommended := recommendForFile(store, getSearcher, file)
+		recommended := recommendForFile(recommendationCache, file)
 		if recommended == nil {
 			recommended = []search.Result{}
 		}
@@ -333,7 +339,7 @@ func runMCPTool(store *storage.Store, getSearcher func() *search.Searcher, onCon
 			if err := store.WriteRaw(path, raw); err != nil {
 				return nil, mcpStorageError(path, err)
 			}
-			triggerContentChanged(onContentChanged)
+			triggerContentChanged(onContentChanged, path)
 			info, err := store.StatFile(path)
 			if err != nil {
 				return nil, err
@@ -343,7 +349,7 @@ func runMCPTool(store *storage.Store, getSearcher func() *search.Searcher, onCon
 		if err := store.Write(path, []byte(content)); err != nil {
 			return nil, mcpStorageError(path, err)
 		}
-		triggerContentChanged(onContentChanged)
+		triggerContentChanged(onContentChanged, path)
 		file, err := store.Read(path)
 		if err != nil {
 			return nil, err
@@ -358,7 +364,7 @@ func runMCPTool(store *storage.Store, getSearcher func() *search.Searcher, onCon
 		if err := store.Delete(path); err != nil {
 			return nil, mcpStorageError(path, err)
 		}
-		triggerContentChanged(onContentChanged)
+		triggerContentChanged(onContentChanged, path)
 		return map[string]string{"status": "deleted", "path": path}, nil
 
 	case "duffel_mkdir":
@@ -380,7 +386,7 @@ func runMCPTool(store *storage.Store, getSearcher func() *search.Searcher, onCon
 		if err := store.Move(src, dst); err != nil {
 			return nil, mcpStorageError(src, err)
 		}
-		triggerContentChanged(onContentChanged)
+		triggerContentChanged(onContentChanged, src, dst)
 		return map[string]string{"status": "moved", "from": src, "to": dst}, nil
 
 	case "duffel_archive":
@@ -391,7 +397,7 @@ func runMCPTool(store *storage.Store, getSearcher func() *search.Searcher, onCon
 		if err := store.Archive(path); err != nil {
 			return nil, mcpStorageError(path, err)
 		}
-		triggerContentChanged(onContentChanged)
+		triggerContentChanged(onContentChanged, path)
 		return map[string]string{"status": "archived", "path": path}, nil
 
 	case "duffel_unarchive":
@@ -402,7 +408,7 @@ func runMCPTool(store *storage.Store, getSearcher func() *search.Searcher, onCon
 		if err := store.Unarchive(path); err != nil {
 			return nil, mcpStorageError(path, err)
 		}
-		triggerContentChanged(onContentChanged)
+		triggerContentChanged(onContentChanged, path)
 		return map[string]string{"status": "unarchived", "path": path}, nil
 
 	case "duffel_journal_create":
@@ -414,7 +420,7 @@ func runMCPTool(store *storage.Store, getSearcher func() *search.Searcher, onCon
 		if err := store.CreateJournal(path, content); err != nil {
 			return nil, mcpStorageError(path, err)
 		}
-		triggerContentChanged(onContentChanged)
+		triggerContentChanged(onContentChanged, path)
 		file, err := store.Read(path)
 		if err != nil {
 			return nil, err
@@ -430,12 +436,46 @@ func runMCPTool(store *storage.Store, getSearcher func() *search.Searcher, onCon
 		if err := store.AppendJournal(path, content); err != nil {
 			return nil, mcpStorageError(path, err)
 		}
-		triggerContentChanged(onContentChanged)
+		triggerContentChanged(onContentChanged, path)
 		file, err := store.Read(path)
 		if err != nil {
 			return nil, err
 		}
 		return file, nil
+
+	case "duffel_diagram_read":
+		path := argString(args, "path", "")
+		if path == "" {
+			return nil, fmt.Errorf("path is required")
+		}
+		return readIllustration(store, path)
+
+	case "duffel_diagram_set":
+		path := argString(args, "path", "")
+		mermaid := strings.TrimSpace(argString(args, "mermaid", ""))
+		if path == "" || mermaid == "" {
+			return nil, fmt.Errorf("path and mermaid are required")
+		}
+		result, err := writeIllustration(store, path, illustrationDocument{
+			Version: illustrationVersion,
+			Mermaid: mermaid,
+		}, "")
+		if err != nil {
+			return nil, err
+		}
+		triggerContentChanged(onContentChanged, path)
+		return result, nil
+
+	case "duffel_diagram_delete":
+		path := argString(args, "path", "")
+		if path == "" {
+			return nil, fmt.Errorf("path is required")
+		}
+		if err := deleteIllustration(store, path); err != nil {
+			return nil, err
+		}
+		triggerContentChanged(onContentChanged, path)
+		return map[string]string{"status": "deleted", "path": path}, nil
 
 	case "duffel_search", "search":
 		query := argString(args, "query", "")

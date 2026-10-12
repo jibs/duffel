@@ -3,8 +3,10 @@ package api
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"duffel/pkg/duffellib/search"
+	"duffel/pkg/duffellib/storage"
 )
 
 func TestBuildRecommendationQueryStripsFrontMatterAndCapsBody(t *testing.T) {
@@ -80,6 +82,80 @@ func TestRecommendationSearchOptionsRequireFastQmdHybrid(t *testing.T) {
 	}
 	if !strings.HasPrefix(opts.Query, "lex: ") {
 		t.Fatalf("Query = %q, want qmd lex query document", opts.Query)
+	}
+}
+
+func TestRecommendationCacheReturnsMaterializedRecommendations(t *testing.T) {
+	modTime := time.Now()
+	cache := NewRecommendationCache()
+	cache.entries["notes/current.md"] = recommendationCacheEntry{
+		modTime: modTime,
+		results: []search.Result{
+			{Path: "notes/related.md", Title: "Related"},
+		},
+	}
+
+	got := cache.ForFile(&storage.FileInfo{
+		Path:    "notes/current.md",
+		ModTime: modTime,
+	})
+	if len(got) != 1 || got[0].Path != "notes/related.md" {
+		t.Fatalf("ForFile returned %#v, want cached recommendation", got)
+	}
+
+	got[0].Path = "mutated.md"
+	again := cache.ForFile(&storage.FileInfo{
+		Path:    "notes/current.md",
+		ModTime: modTime,
+	})
+	if again[0].Path != "notes/related.md" {
+		t.Fatalf("ForFile exposed mutable cache result: %#v", again)
+	}
+}
+
+func TestRecommendationCacheNormalizesAbsolutePaths(t *testing.T) {
+	modTime := time.Now()
+	cache := NewRecommendationCache()
+	cache.entries["notes/current.md"] = recommendationCacheEntry{
+		modTime: modTime,
+		results: []search.Result{
+			{Path: "notes/related.md", Title: "Related"},
+		},
+	}
+
+	got := cache.ForFile(&storage.FileInfo{
+		Path:    "/notes/current.md",
+		ModTime: modTime,
+	})
+	if len(got) != 1 || got[0].Path != "notes/related.md" {
+		t.Fatalf("ForFile returned %#v, want cached recommendation for absolute path", got)
+	}
+
+	cache.Delete("/notes/current.md")
+	got = cache.ForFile(&storage.FileInfo{
+		Path:    "notes/current.md",
+		ModTime: modTime,
+	})
+	if len(got) != 0 {
+		t.Fatalf("ForFile returned %#v after absolute delete, want empty", got)
+	}
+}
+
+func TestRecommendationCacheReturnsEmptyForStaleEntry(t *testing.T) {
+	cache := NewRecommendationCache()
+	cache.entries["notes/current.md"] = recommendationCacheEntry{
+		modTime: time.Now().Add(-time.Minute),
+		results: []search.Result{
+			{Path: "notes/related.md", Title: "Related"},
+		},
+	}
+
+	got := cache.ForFile(&storage.FileInfo{
+		Path:    "notes/current.md",
+		ModTime: time.Now(),
+	})
+	if len(got) != 0 {
+		t.Fatalf("ForFile returned %#v, want empty stale result", got)
 	}
 }
 

@@ -26,8 +26,28 @@ Use Duffel when you want:
 
 - A local notes workspace backed by files you can inspect and version normally.
 - A browser UI for reading, editing, archiving, and searching Markdown notes.
+- Optional per-note tldraw canvases for editable human or agent-created diagrams.
 - An MCP endpoint that lets LLM tools use the same notes as durable project memory.
 - A simple Go + TypeScript app that can run on a laptop, home server, or private network.
+
+## Optional note illustrations
+
+Every text note and journal has an **Illustrate** action. The tldraw editor is
+loaded only when a note has an illustration or someone opens the editor, so
+ordinary Markdown pages do not pay the drawing bundle cost. Illustration data is
+stored in hidden, versioned sidecars under `.duffel/illustrations/`; Markdown
+remains the note source of truth.
+
+Agents can attach editable diagrams through the MCP connector:
+
+- `duffel_diagram_set` accepts a note path and Mermaid source.
+- `duffel_diagram_read` reads the attached diagram metadata.
+- `duffel_diagram_delete` removes the attachment.
+
+The first view converts supported Mermaid flowcharts, sequence diagrams, state
+diagrams, and mind maps into native tldraw shapes. Humans can then edit those
+shapes with the normal tldraw tools. Set `DUFFEL_TLDRAW_LICENSE_KEY` for
+production HTTPS deployments as required by the tldraw SDK license.
 
 ## Ask an LLM to set it up
 
@@ -195,6 +215,7 @@ Environment variables:
 | `DUFFEL_FRONTEND_DIR` | `./src/frontend` | Static frontend directory. |
 | `DUFFEL_AUTH_ENABLED` | `true` | Require OAuth/Bearer auth for API and MCP. |
 | `DUFFEL_SETUP_TOKEN` | empty | Required for first owner setup when auth is enabled. |
+| `DUFFEL_TLDRAW_LICENSE_KEY` | empty | Public tldraw SDK key used by optional note illustrations. Required by tldraw for production HTTPS deployments. |
 
 `qmd` is provided by the pinned npm dependency `@tobilu/qmd@2.1.0`; do not
 install or depend on a global `qmd` binary.

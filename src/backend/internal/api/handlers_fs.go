@@ -37,7 +37,7 @@ type fileGetResponse struct {
 	Recommended []search.Result `json:"recommended"`
 }
 
-func handleFSGet(store *storage.Store, getSearcher func() *search.Searcher) http.HandlerFunc {
+func handleFSGet(store *storage.Store, recommendationCache *RecommendationCache) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		urlPath := extractPath(r)
 		archived := r.URL.Query().Get("archived") == "true"
@@ -96,7 +96,7 @@ func handleFSGet(store *storage.Store, getSearcher func() *search.Searcher) http
 			return
 		}
 
-		recommended := recommendForFile(store, getSearcher, file)
+		recommended := recommendForFile(recommendationCache, file)
 		if recommended == nil {
 			recommended = []search.Result{}
 		}
@@ -113,7 +113,7 @@ func handleFSGet(store *storage.Store, getSearcher func() *search.Searcher) http
 	}
 }
 
-func handleFSPut(store *storage.Store, onContentChanged func()) http.HandlerFunc {
+func handleFSPut(store *storage.Store, onContentChanged ContentChangeNotifier) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		urlPath := extractPath(r)
 
@@ -137,7 +137,7 @@ func handleFSPut(store *storage.Store, onContentChanged func()) http.HandlerFunc
 			writeFSWriteError(w, err, urlPath)
 			return
 		}
-		triggerContentChanged(onContentChanged)
+		triggerContentChanged(onContentChanged, urlPath)
 
 		// Read back the file to return full info
 		file, err := store.Read(urlPath)
@@ -162,7 +162,7 @@ func isBinaryUpload(r *http.Request) bool {
 	return ct != "application/json" && ct != "text/json"
 }
 
-func handleBinaryPut(w http.ResponseWriter, r *http.Request, store *storage.Store, onContentChanged func(), urlPath string) {
+func handleBinaryPut(w http.ResponseWriter, r *http.Request, store *storage.Store, onContentChanged ContentChangeNotifier, urlPath string) {
 	if !storage.IsImagePath(urlPath) {
 		writeError(w, http.StatusBadRequest, storage.ErrUnsupportedBinary.Error(), urlPath)
 		return
@@ -189,7 +189,7 @@ func handleBinaryPut(w http.ResponseWriter, r *http.Request, store *storage.Stor
 		writeFSWriteError(w, err, urlPath)
 		return
 	}
-	triggerContentChanged(onContentChanged)
+	triggerContentChanged(onContentChanged, urlPath)
 
 	info, err := store.StatFile(urlPath)
 	if err != nil {
@@ -282,7 +282,7 @@ func writeFSWriteError(w http.ResponseWriter, err error, urlPath string) {
 	}
 }
 
-func handleFSDelete(store *storage.Store, onContentChanged func()) http.HandlerFunc {
+func handleFSDelete(store *storage.Store, onContentChanged ContentChangeNotifier) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		urlPath := extractPath(r)
 
@@ -308,13 +308,17 @@ func handleFSDelete(store *storage.Store, onContentChanged func()) http.HandlerF
 			writeError(w, http.StatusInternalServerError, err.Error(), urlPath)
 			return
 		}
-		triggerContentChanged(onContentChanged)
+		if err := deleteIllustrationsForPath(store, urlPath, r.URL.Query().Get("recursive") == "true"); err != nil {
+			writeError(w, http.StatusInternalServerError, "deleted note but failed to delete its illustration: "+err.Error(), urlPath)
+			return
+		}
+		triggerContentChanged(onContentChanged, urlPath)
 
 		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted", "path": urlPath})
 	}
 }
 
-func handleFSMove(store *storage.Store, onContentChanged func()) http.HandlerFunc {
+func handleFSMove(store *storage.Store, onContentChanged ContentChangeNotifier) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		srcPath := extractPath(r)
 
@@ -347,7 +351,12 @@ func handleFSMove(store *storage.Store, onContentChanged func()) http.HandlerFun
 			writeError(w, http.StatusInternalServerError, err.Error(), srcPath)
 			return
 		}
-		triggerContentChanged(onContentChanged)
+		if err := moveIllustration(store, srcPath, body.Destination); err != nil {
+			_ = store.Move(body.Destination, srcPath)
+			writeError(w, http.StatusInternalServerError, "failed to move attached illustration: "+err.Error(), srcPath)
+			return
+		}
+		triggerContentChanged(onContentChanged, srcPath, body.Destination)
 
 		writeJSON(w, http.StatusOK, map[string]string{
 			"status": "moved",
@@ -357,13 +366,13 @@ func handleFSMove(store *storage.Store, onContentChanged func()) http.HandlerFun
 	}
 }
 
-func triggerContentChanged(onContentChanged func()) {
+func triggerContentChanged(onContentChanged ContentChangeNotifier, paths ...string) {
 	if onContentChanged != nil {
-		onContentChanged()
+		onContentChanged(paths...)
 	}
 }
 
-func handleFSPost(store *storage.Store, onContentChanged func()) http.HandlerFunc {
+func handleFSPost(store *storage.Store, onContentChanged ContentChangeNotifier) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		urlPath := extractPath(r)
 
