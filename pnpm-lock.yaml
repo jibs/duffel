@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@tldraw/mermaid':
-        specifier: 5.2.5
-        version: 5.2.5(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tldraw@5.2.5(@floating-ui/dom@1.8.0)(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))
+        specifier: 5.5.2
+        version: 5.5.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tldraw@5.5.2(@floating-ui/dom@1.8.0)(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))
       '@tobilu/qmd':
         specifier: 2.5.3
         version: 2.5.3(typescript@5.9.3)
@@ -21,8 +21,8 @@ importers:
         specifier: 19.2.7
         version: 19.2.7(react@19.2.7)
       tldraw:
-        specifier: 5.2.5
-        version: 5.2.5(@floating-ui/dom@1.8.0)(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: 5.5.2
+        version: 5.5.2(@floating-ui/dom@1.8.0)(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
     devDependencies:
       '@types/react':
         specifier: 19.2.2
@@ -1297,6 +1297,11 @@ packages:
     peerDependencies:
       '@tiptap/core': 3.29.0
 
+  '@tiptap/extension-typography@3.13.0':
+    resolution: {integrity: sha512-Pvxc0Mu3fIgcqOVpU5DqK55F+/ShvX020HmbsPY+Z7SED9fkan5QVn3n2nm13A2TQ+RWDlPAnHe7Gh0d/KsL5Q==}
+    peerDependencies:
+      '@tiptap/core': ^3.13.0
+
   '@tiptap/extension-underline@3.29.0':
     resolution: {integrity: sha512-DSPTogdvxmoX/L0U5KgBC9jWffRvYkGiyh1tp28gn+QaARh4iJn79pAZpi1m1bEhal/0Mq5m4ukbiO7FWInwaA==}
     peerDependencies:
@@ -1324,55 +1329,55 @@ packages:
   '@tiptap/starter-kit@3.29.0':
     resolution: {integrity: sha512-J3jTp3/WXnnL58TCtdMsfeQ2BeycFYrAib6Nbpjd9G0OLUBE7AILiH2HrobRQpvRbAUgD5SW+sBZYOonbWWqNg==}
 
-  '@tldraw/driver@5.2.5':
-    resolution: {integrity: sha512-smu4NnqTdIM59/hHTvuXxqJWQ5aLpFUR59ibS//o30P9pgMAoN4v/7NhYx9g+V7RAeOzIpDqREouz3hZdoEt9Q==}
+  '@tldraw/driver@5.5.2':
+    resolution: {integrity: sha512-qCxHgHjE8iWfqQK8O59OPEYX5MEBUuuUTfaiKog8kqgGCXABiVeUuD38W8AdYWM/KJnaNcBBfKrPLwoK+RyLsQ==}
     engines: {node: '>=22.12.0'}
 
-  '@tldraw/editor@5.2.5':
-    resolution: {integrity: sha512-/2aIuOLik7+tIzdmnjZ5XuxPRfSzZnNXVbxqCiFIVgbwe1W4jwm2lr2K4EpGduzdnbTNNvh6nPDJGg/jamAvnA==}
-    engines: {node: '>=22.12.0'}
-    peerDependencies:
-      react: ^18.2.0 || ^19.2.1
-      react-dom: ^18.2.0 || ^19.2.1
-
-  '@tldraw/mermaid@5.2.5':
-    resolution: {integrity: sha512-19a/lLYsZGB7lp3N57ayx681KtVBdepGRqBuoPhELEH5bFxcJUj+ZebVUzvngRNCuZWyMDqLXWxorp2Rsij4wg==}
-    engines: {node: '>=22.12.0'}
-    peerDependencies:
-      react: ^18.2.0 || ^19.2.1
-      react-dom: ^18.2.0 || ^19.2.1
-      tldraw: 5.2.5
-
-  '@tldraw/state-react@5.2.5':
-    resolution: {integrity: sha512-/DbTo2Oulg/ZlQwfqlyJq+rjpYBIdwl9iELB01ImQ3aDIfM5TEyabc65baj/eCW3UNlFwKVTRft9m5z4jlPbVw==}
+  '@tldraw/editor@5.5.2':
+    resolution: {integrity: sha512-4cPMJtSRe8KVq8SjIy+xBTXkKRI7JWljCUeptG+3ozIwbWbQXY+oKOSGthPyadmeFkOrB4LBP5RLHrc8KSrsYg==}
     engines: {node: '>=22.12.0'}
     peerDependencies:
       react: ^18.2.0 || ^19.2.1
       react-dom: ^18.2.0 || ^19.2.1
 
-  '@tldraw/state@5.2.5':
-    resolution: {integrity: sha512-fTn6YG6+MMlc3Rshb0/9k2YQ5TnKjy9FLwiGD7ph5maj9quSdpWQJNRgYxk7o2tRd/m7j+NhgylIb/F+2iKwbw==}
-    engines: {node: '>=22.12.0'}
-
-  '@tldraw/store@5.2.5':
-    resolution: {integrity: sha512-d3sWGoFH1j9jip71VdbVYQC5WLebn2ydo2n1BG3J+PhRhv7DGP9B1bojPUd9lEPBlB4VaS6/BmP4zyk/sLmAnw==}
+  '@tldraw/mermaid@5.5.2':
+    resolution: {integrity: sha512-YZRfhjmaC9mn6usiP7tnxnmcmhdJSfp+MmcQaN1kcBCuGlNbqGCjFkA28Ztx0/fdO3z8Hc5dTh7fy8y4i8ZRew==}
     engines: {node: '>=22.12.0'}
     peerDependencies:
       react: ^18.2.0 || ^19.2.1
+      react-dom: ^18.2.0 || ^19.2.1
+      tldraw: 5.5.2
 
-  '@tldraw/tlschema@5.2.5':
-    resolution: {integrity: sha512-Oe9f1e0pcO6M42RVeBTAMqUXdWMJTeCFnM9DsBvJoY94ukIau5huUARAJ2mIV+oqUQS3pkDOrDz/L0KSN9+Eig==}
+  '@tldraw/state-react@5.5.2':
+    resolution: {integrity: sha512-1syN0tW9gckSecQ53pNJ4rSO3M10NttMu3LIrKeibl6yBbKKEbJsLxY72ITj3AnbEa9pOpzn897IjmKfRW+79A==}
     engines: {node: '>=22.12.0'}
     peerDependencies:
       react: ^18.2.0 || ^19.2.1
       react-dom: ^18.2.0 || ^19.2.1
 
-  '@tldraw/utils@5.2.5':
-    resolution: {integrity: sha512-8f2KqXVsPdXhZsGC2c1c+V19hpct7BQIcKnsq1b+zKUqDf7B/lNSHm/S63NeRhmsOTgzEIeOXVQYHX7OYXo2Xg==}
+  '@tldraw/state@5.5.2':
+    resolution: {integrity: sha512-e5c01kKlHhmNHALRH19gTlaJihJac8m/TrMkyqe3dajQMu1QQsuVhIbD9tIY7E2qbQ1s7rp+9dPP2gDkpG6CaQ==}
     engines: {node: '>=22.12.0'}
 
-  '@tldraw/validate@5.2.5':
-    resolution: {integrity: sha512-FgFbMuKVdFUWyZFq0wr+ojZ/zeXlm4/Ed47duvYfDWoGkQ5r/j2q4vnfeB0MVyGHxGbvVMqDOgGbWPbCJoDspA==}
+  '@tldraw/store@5.5.2':
+    resolution: {integrity: sha512-PoULEs90/BqvwtfcVnajI7/7TesxGtz+UmXjWdFLCYGy7Y86MmIBLYobT6WwQ6jv3dGVQy4kcRREtADHY6iFpA==}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      react: ^18.2.0 || ^19.2.1
+
+  '@tldraw/tlschema@5.5.2':
+    resolution: {integrity: sha512-9CNN1gyuMPP/Bhy4z0c/sfX21r9beFIzMjxckofJqOJMUqy5sIoERJSYMBa3rJj1EjeSbM7gicR71bZ+CexHYA==}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      react: ^18.2.0 || ^19.2.1
+      react-dom: ^18.2.0 || ^19.2.1
+
+  '@tldraw/utils@5.5.2':
+    resolution: {integrity: sha512-8fEom5kUIooSHoxgGKhR5WJoPK9ouV/xG99nwID+is7dFIxB2I7wv5ZjqO4hXFDPOBWHE6AM5aV3Ml2kjQMwsA==}
+    engines: {node: '>=22.12.0'}
+
+  '@tldraw/validate@5.5.2':
+    resolution: {integrity: sha512-+VbUevzE17Bmx0nbAJoTCZlpQKTC7jkgSr+2E/Zna7/9yrRCf2QYfYbudUBRmrbul6F0k1s69XJ1C/rr9TSNfg==}
     engines: {node: '>=22.12.0'}
 
   '@tobilu/qmd@2.5.3':
@@ -2473,8 +2478,8 @@ packages:
     resolution: {integrity: sha512-8q7VEgMJW4J8tcfVPy8g09NcQwZdbwFEqhe/WZkoIzjn/3TGDwtOCYtXGxA3O8tPzpczCCDgv+P2P5y00ZJOOg==}
     engines: {node: '>= 8'}
 
-  mermaid@11.15.0:
-    resolution: {integrity: sha512-pTMbcf3rWdtLiYGpmoTjHEpeY8seiy6sR+9nD7LOs8KfUbHE4lOUAprTRqRAcWSQ6MQpdX+YEsxShtGsINtPtw==}
+  mermaid@11.16.1:
+    resolution: {integrity: sha512-TQsq6u22fAn3rek5VOubrhKPo1g5hwC3FXUN9hiyupTckcYiGuuKGkNQrKYwGJkXUxZdojwRG46gsSCFZMDp4g==}
 
   micromatch@4.0.8:
     resolution: {integrity: sha512-PXwfBhYu0hBCPw8Dn0E+WDYb7af3dSLVWKi3HGv84IdF4TyFoC0ysxFd0Goxw7nSv4T/PzEJQxsYsEiFCKo2BA==}
@@ -3034,8 +3039,8 @@ packages:
     resolution: {integrity: sha512-j2Zq4NyQYG5XMST4cbs02Ak8iJUdxRM0XI5QyxXuZOzKOINmWurp3smXu3y5wDcJrptwpSjgXHzIQxR0omXljQ==}
     engines: {node: '>=12.0.0'}
 
-  tldraw@5.2.5:
-    resolution: {integrity: sha512-bTnOkeZhi+RgdHXPjxp0/nG6kbXzLC8ZlwNMpmGjWjT2Oel6uaJWni7PxFPIK4p2zInmnRamdU06ArDStLvPag==}
+  tldraw@5.5.2:
+    resolution: {integrity: sha512-yQ7glHWcS1YtaAMcICS5s3dxtboeBD2PqTS3oztYHsVkHCr/Tzsni2kepgR8Gj42ELLErCVTOsM/eUhy/pRdtg==}
     engines: {node: '>=22.12.0'}
     peerDependencies:
       react: ^18.2.0 || ^19.2.1
@@ -4408,6 +4413,10 @@ snapshots:
     dependencies:
       '@tiptap/core': 3.29.0(@tiptap/pm@3.29.0)
 
+  '@tiptap/extension-typography@3.13.0(@tiptap/core@3.29.0(@tiptap/pm@3.29.0))':
+    dependencies:
+      '@tiptap/core': 3.29.0(@tiptap/pm@3.29.0)
+
   '@tiptap/extension-underline@3.29.0(@tiptap/core@3.29.0(@tiptap/pm@3.29.0))':
     dependencies:
       '@tiptap/core': 3.29.0(@tiptap/pm@3.29.0)
@@ -4477,10 +4486,10 @@ snapshots:
       '@tiptap/extensions': 3.29.0(@tiptap/core@3.29.0(@tiptap/pm@3.29.0))(@tiptap/pm@3.29.0)
       '@tiptap/pm': 3.29.0
 
-  '@tldraw/driver@5.2.5(@floating-ui/dom@1.8.0)(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@tldraw/driver@5.5.2(@floating-ui/dom@1.8.0)(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
-      '@tldraw/editor': 5.2.5(@floating-ui/dom@1.8.0)(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@tldraw/utils': 5.2.5
+      '@tldraw/editor': 5.5.2(@floating-ui/dom@1.8.0)(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@tldraw/utils': 5.5.2
     transitivePeerDependencies:
       - '@floating-ui/dom'
       - '@types/react'
@@ -4488,17 +4497,17 @@ snapshots:
       - react
       - react-dom
 
-  '@tldraw/editor@5.2.5(@floating-ui/dom@1.8.0)(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@tldraw/editor@5.5.2(@floating-ui/dom@1.8.0)(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
       '@tiptap/core': 3.29.0(@tiptap/pm@3.29.0)
       '@tiptap/pm': 3.29.0
       '@tiptap/react': 3.29.0(@floating-ui/dom@1.8.0)(@tiptap/core@3.29.0(@tiptap/pm@3.29.0))(@tiptap/pm@3.29.0)(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@tldraw/state': 5.2.5
-      '@tldraw/state-react': 5.2.5(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@tldraw/store': 5.2.5(react@19.2.7)
-      '@tldraw/tlschema': 5.2.5(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@tldraw/utils': 5.2.5
-      '@tldraw/validate': 5.2.5
+      '@tldraw/state': 5.5.2
+      '@tldraw/state-react': 5.5.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@tldraw/store': 5.5.2(react@19.2.7)
+      '@tldraw/tlschema': 5.5.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@tldraw/utils': 5.5.2
+      '@tldraw/validate': 5.5.2
       classnames: 2.5.1
       eventemitter3: 4.0.7
       idb: 7.1.1
@@ -4511,51 +4520,51 @@ snapshots:
       - '@types/react'
       - '@types/react-dom'
 
-  '@tldraw/mermaid@5.2.5(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tldraw@5.2.5(@floating-ui/dom@1.8.0)(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))':
+  '@tldraw/mermaid@5.5.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tldraw@5.5.2(@floating-ui/dom@1.8.0)(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))':
     dependencies:
-      '@tldraw/tlschema': 5.2.5(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@tldraw/utils': 5.2.5
-      mermaid: 11.15.0
+      '@tldraw/tlschema': 5.5.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@tldraw/utils': 5.5.2
+      mermaid: 11.16.1
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
-      tldraw: 5.2.5(@floating-ui/dom@1.8.0)(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      tldraw: 5.5.2(@floating-ui/dom@1.8.0)(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
 
-  '@tldraw/state-react@5.2.5(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@tldraw/state-react@5.5.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
-      '@tldraw/state': 5.2.5
-      '@tldraw/utils': 5.2.5
-      react: 19.2.7
-      react-dom: 19.2.7(react@19.2.7)
-
-  '@tldraw/state@5.2.5':
-    dependencies:
-      '@tldraw/utils': 5.2.5
-
-  '@tldraw/store@5.2.5(react@19.2.7)':
-    dependencies:
-      '@tldraw/state': 5.2.5
-      '@tldraw/utils': 5.2.5
-      react: 19.2.7
-
-  '@tldraw/tlschema@5.2.5(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
-    dependencies:
-      '@tldraw/state': 5.2.5
-      '@tldraw/store': 5.2.5(react@19.2.7)
-      '@tldraw/utils': 5.2.5
-      '@tldraw/validate': 5.2.5
+      '@tldraw/state': 5.5.2
+      '@tldraw/utils': 5.5.2
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
 
-  '@tldraw/utils@5.2.5':
+  '@tldraw/state@5.5.2':
+    dependencies:
+      '@tldraw/utils': 5.5.2
+
+  '@tldraw/store@5.5.2(react@19.2.7)':
+    dependencies:
+      '@tldraw/state': 5.5.2
+      '@tldraw/utils': 5.5.2
+      react: 19.2.7
+
+  '@tldraw/tlschema@5.5.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+    dependencies:
+      '@tldraw/state': 5.5.2
+      '@tldraw/store': 5.5.2(react@19.2.7)
+      '@tldraw/utils': 5.5.2
+      '@tldraw/validate': 5.5.2
+      react: 19.2.7
+      react-dom: 19.2.7(react@19.2.7)
+
+  '@tldraw/utils@5.5.2':
     dependencies:
       lodash.isequal: 4.5.0
       lodash.isequalwith: 4.4.0
       lodash.throttle: 4.1.1
       lodash.uniq: 4.5.0
 
-  '@tldraw/validate@5.2.5':
+  '@tldraw/validate@5.5.2':
     dependencies:
-      '@tldraw/utils': 5.2.5
+      '@tldraw/utils': 5.5.2
 
   '@tobilu/qmd@2.5.3(typescript@5.9.3)':
     dependencies:
@@ -5735,7 +5744,7 @@ snapshots:
 
   merge2@1.4.1: {}
 
-  mermaid@11.15.0:
+  mermaid@11.16.1:
     dependencies:
       '@braintree/sanitize-url': 7.1.2
       '@iconify/utils': 3.1.4
@@ -6443,18 +6452,21 @@ snapshots:
       fdir: 6.5.0(picomatch@4.0.4)
       picomatch: 4.0.4
 
-  tldraw@5.2.5(@floating-ui/dom@1.8.0)(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
+  tldraw@5.5.2(@floating-ui/dom@1.8.0)(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
     dependencies:
       '@tiptap/core': 3.29.0(@tiptap/pm@3.29.0)
       '@tiptap/extension-code': 3.29.0(@tiptap/core@3.29.0(@tiptap/pm@3.29.0))
       '@tiptap/extension-highlight': 3.29.0(@tiptap/core@3.29.0(@tiptap/pm@3.29.0))
       '@tiptap/extension-list': 3.29.0(@tiptap/core@3.29.0(@tiptap/pm@3.29.0))(@tiptap/pm@3.29.0)
+      '@tiptap/extension-typography': 3.13.0(@tiptap/core@3.29.0(@tiptap/pm@3.29.0))
       '@tiptap/pm': 3.29.0
       '@tiptap/react': 3.29.0(@floating-ui/dom@1.8.0)(@tiptap/core@3.29.0(@tiptap/pm@3.29.0))(@tiptap/pm@3.29.0)(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@tiptap/starter-kit': 3.29.0
-      '@tldraw/driver': 5.2.5(@floating-ui/dom@1.8.0)(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@tldraw/editor': 5.2.5(@floating-ui/dom@1.8.0)(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@tldraw/store': 5.2.5(react@19.2.7)
+      '@tldraw/driver': 5.5.2(@floating-ui/dom@1.8.0)(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@tldraw/editor': 5.5.2(@floating-ui/dom@1.8.0)(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@tldraw/state': 5.5.2
+      '@tldraw/store': 5.5.2(react@19.2.7)
+      '@tldraw/tlschema': 5.5.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       classnames: 2.5.1
       idb: 7.1.1
       lz-string: 1.5.0

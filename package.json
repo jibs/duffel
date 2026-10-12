@@ -14,11 +14,11 @@
     "typescript-eslint": "^8.56.0"
   },
   "dependencies": {
-    "@tldraw/mermaid": "5.2.5",
+    "@tldraw/mermaid": "5.5.2",
     "@tobilu/qmd": "2.5.3",
     "react": "19.2.7",
     "react-dom": "19.2.7",
-    "tldraw": "5.2.5"
+    "tldraw": "5.5.2"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
