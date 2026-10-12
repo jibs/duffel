@@ -262,7 +262,7 @@ func stripLeadingFrontmatter(s string) string {
 // any path that escapes the data root.
 func validateClipPath(path string) error {
 	if strings.Contains(path, "..") {
-		return fmt.Errorf("path must not contain ..")
+		return fmt.Errorf("path must not contain a '..' sequence")
 	}
 	if strings.HasPrefix(path, "/") {
 		return fmt.Errorf("path must not be absolute")

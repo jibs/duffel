@@ -65,7 +65,7 @@ Requirements:
 
 Steps:
 1. Clone the repo and enter it.
-2. Run make setup and make setup-release-audit; install jq and rg for release checks.
+2. Run make setup, make setup-lint, and make setup-release-audit; install jq and rg for release checks.
 3. Create a few sample Markdown files under ./data if the directory is empty.
 4. Start the app with make dev for development, or follow ops/deploy/DEPLOY.md for systemd deployment.
 5. Open http://localhost:4386.
@@ -260,6 +260,7 @@ Common commands:
 
 ```bash
 make setup          # install dependencies
+make setup-lint     # install pinned, checksummed golangci-lint
 make setup-release-audit # install pinned, checksummed TruffleHog
 make dev            # build frontend JS and run the Go server
 make build          # build the backend binary
@@ -278,6 +279,9 @@ make ci
 
 The CI target includes formatting checks, linting, Go vet, TypeScript checks,
 frontend build, backend tests, e2e tests, and the release audit.
+
+`make lint` uses the pinned golangci-lint v2.14.0 binary from `.tools/bin` and
+validates `.golangci.yml` before running. Use `make setup-lint` to install it.
 
 ## Security model
 

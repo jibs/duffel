@@ -17,8 +17,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install release scanner
-        run: make setup-release-audit
+      - name: Install lint and release tools
+        run: make setup-lint setup-release-audit
 
       - name: Setup Go
         uses: actions/setup-go@v5

@@ -3,7 +3,7 @@ SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
 DEPLOY_HOST ?= deploy@example-host
-GOLANGCI_LINT ?= $(shell command -v golangci-lint 2>/dev/null || printf '%s' 'go run github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8')
+GOLANGCI_LINT ?= $(CURDIR)/.tools/bin/golangci-lint
 GOLANGCI_LINT_CACHE ?= /private/tmp/duffel-golangci-lint-cache
 
 ifneq (,$(wildcard .env))
@@ -11,11 +11,12 @@ include .env
 export
 endif
 
-.PHONY: help build-js dev build test test-unit test-integration test-e2e test-live test-release-audit fmt fmt-check lint lint-go lint-js typecheck ci deploy setup setup-release-audit clean release-audit
+.PHONY: help build-js dev build test test-unit test-integration test-e2e test-live test-release-audit fmt fmt-check lint lint-go lint-js typecheck ci deploy setup setup-lint setup-release-audit clean release-audit
 
 help:
 	@echo "Available targets:"
 	@echo "  setup          Install dependencies and rebuild native addons"
+	@echo "  setup-lint     Install pinned, checksummed golangci-lint"
 	@echo "  setup-release-audit Install pinned TruffleHog release scanner"
 	@echo "  dev            Build frontend JS and run development server"
 	@echo "  build-js       Build TypeScript frontend"
@@ -88,7 +89,9 @@ fmt-check:
 lint: lint-go lint-js
 
 lint-go:
-	GOLANGCI_LINT_CACHE=$(GOLANGCI_LINT_CACHE) $(GOLANGCI_LINT) run ./pkg/... ./src/backend/...
+	@command -v "$(GOLANGCI_LINT)" >/dev/null 2>&1 || { echo "golangci-lint is required; run make setup-lint" >&2; exit 1; }
+	GOLANGCI_LINT_CACHE=$(GOLANGCI_LINT_CACHE) "$(GOLANGCI_LINT)" config verify
+	GOLANGCI_LINT_CACHE=$(GOLANGCI_LINT_CACHE) "$(GOLANGCI_LINT)" run ./pkg/... ./src/backend/...
 
 lint-js:
 	node node_modules/eslint/bin/eslint.js src/frontend/ts/ src/frontend/drawing/
@@ -116,6 +119,9 @@ setup:
 
 setup-release-audit:
 	bash ./ops/scripts/install_trufflehog.sh
+
+setup-lint:
+	bash ./ops/scripts/install_golangci_lint.sh
 
 clean:
 	rm -f duffel

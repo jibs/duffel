@@ -60,6 +60,7 @@ Journal entry rules:
 ## Common Commands
 
 - `make setup` install dependencies and rebuild native addons
+- `make setup-lint` install the pinned, checksummed golangci-lint v2 binary
 - `make setup-release-audit` install the pinned, checksummed TruffleHog scanner
 - `make dev` build frontend JS and run development server
 - `make build-js` build TypeScript frontend only
