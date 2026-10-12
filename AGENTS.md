@@ -60,6 +60,7 @@ Journal entry rules:
 ## Common Commands
 
 - `make setup` install dependencies and rebuild native addons
+- `make setup-release-audit` install the pinned, checksummed TruffleHog scanner
 - `make dev` build frontend JS and run development server
 - `make build-js` build TypeScript frontend only
 - `make build` build backend binary
@@ -67,12 +68,13 @@ Journal entry rules:
 - `make test-unit` run backend unit tests
 - `make test-integration` run backend integration tests
 - `make test-e2e` run end-to-end tests
+- `make test-release-audit` verify release scanning with disposable credentials
 - `make fmt` format Go and frontend TypeScript
 - `make lint` run Go and JS linters
 - `make typecheck` run go vet and TypeScript type checks
 - `make ci` full CI pipeline (fmt-check, lint, typecheck, build-js, test, release-audit)
 - `make deploy` restart the production service via SSH (push origin/main first)
-- `make release-audit` run privacy/leak scan on tracked files
+- `make release-audit` run privacy checks and mandatory TruffleHog scans of full Git history, staged content, and current non-ignored source (requires `jq`)
 
 ## Important Paths
 

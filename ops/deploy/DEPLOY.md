@@ -16,13 +16,19 @@ and usernames with values for your own environment.
 
 ## Deploying latest
 
+On the machine running `make deploy`, install `jq` and `rg` (ripgrep), and run
+`make setup-release-audit` once to install the pinned TruffleHog scanner. Use a
+checkout with full Git history; shallow clones fail the release gate.
+
 Push your changes to `origin/main`, then:
 
 ```bash
 make deploy
 ```
 
-This SSHes to the server and restarts the systemd service. On restart, `start.sh` automatically:
+This first runs `make release-audit`, then SSHes to the server and restarts the
+systemd service. Secret candidates, ignored files added to Git, missing tools,
+and scan errors block deployment. On restart, `start.sh` automatically:
 
 1. `git fetch origin && git reset --hard origin/main`
 2. `make setup` (installs/updates deps)

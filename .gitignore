@@ -1,24 +1,167 @@
-# Data
+# Private configuration (keep sanitized examples shareable)
+.env
+.env.*
+.envrc
+.envrc.*
+.direnv/
+*.env
+*.env.*
+!.env.example
+!.env.sample
+!.env.template
+!.env.*.example
+!.env.*.sample
+!.env.*.template
+!.envrc.example
+!.envrc.sample
+!.envrc.template
+!*.env.example
+!*.env.sample
+!*.env.template
+!*.env.*.example
+!*.env.*.sample
+!*.env.*.template
+*.local
+*.local.*
+*.private
+*.private.*
+*.secret
+*.secret.*
+!*.local.example
+!*.local.sample
+!*.local.template
+secrets/
+.secrets/
+secrets.*
+credentials/
+credentials.*
+service-account*.json
+client_secret*.json
+*-credentials.json
+kubeconfig
+kubeconfig.*
+known_hosts
+.netrc
+.pypirc
+.npmrc
+!.npmrc.example
+.docker/config.json
+!secrets.example.*
+!credentials.example.*
+.ssh/
+.aws/
+.kube/
+.auth/
+.mcp.json
+.mcp.*.json
+.codex/
+.claude/
+.opencode/
+ops/deploy/local/
+ops/deploy/private/
+ops/config/local/
+ops/config/private/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+.terraform/
+
+# Keys, certificates, and credential bundles
+*.pem
+*.key
+*.crt
+*.cer
+*.csr
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+id_ecdsa
+id_ecdsa.*
+
+# Workspace data, auth databases, and backups
 data/
+.duffel/
+.archive/
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.dump
+*.sql.gz
+backups/
+*.bak
+*.backup
+*.old
+
+# Build output and downloaded release tooling
+/build/
+/dist/
+/out/
+/bin/
+/.tools/
+*.tar
+*.tar.gz
+*.tgz
+*.zip
 
 # Go
 /duffel
 /server
 *.exe
+*.test
+*.prof
+coverage.out
+coverage.html
+coverage/
 
-# Node
+# Dependencies and caches
 node_modules/
+.pnpm-store/
+.npm/
+.cache/
+.venv/
+__pycache__/
+*.pyc
+*.tsbuildinfo
 
-# Tooling logs
+# Logs, local exports, browser captures, and temporary files
+*.log
+logs/
 .playwright-mcp/
+.playwright/
+playwright-report/
+test-results/
+/artifacts/
+/captures/
+/screenshots/
+*.har
+*.trace
+*.pid
+*.pid.lock
 tmp/
+temp/
+*.tmp
+*.temp
 
 # TypeScript build output
 src/frontend/js/
 
 # OS
 .DS_Store
+Thumbs.db
+Desktop.ini
 *.swp
+*.swo
+*.orig
+*.rej
 *~
 
 # IDE

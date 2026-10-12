@@ -11,11 +11,12 @@ include .env
 export
 endif
 
-.PHONY: help build-js dev build test test-unit test-integration test-e2e test-live fmt fmt-check lint lint-go lint-js typecheck ci deploy setup clean release-audit
+.PHONY: help build-js dev build test test-unit test-integration test-e2e test-live test-release-audit fmt fmt-check lint lint-go lint-js typecheck ci deploy setup setup-release-audit clean release-audit
 
 help:
 	@echo "Available targets:"
 	@echo "  setup          Install dependencies and rebuild native addons"
+	@echo "  setup-release-audit Install pinned TruffleHog release scanner"
 	@echo "  dev            Build frontend JS and run development server"
 	@echo "  build-js       Build TypeScript frontend"
 	@echo "  build          Build backend binary"
@@ -24,13 +25,14 @@ help:
 	@echo "  test-integration Run backend integration tests"
 	@echo "  test-e2e       Run end-to-end tests"
 	@echo "  test-live      Run live tests (LIVE_TESTS=1 LIVE_TESTS_CONFIRM=YES)"
+	@echo "  test-release-audit Verify release scanner and ignore protections"
 	@echo "  fmt            Format Go and frontend TS"
 	@echo "  fmt-check      Check Go formatting"
 	@echo "  lint           Run Go and JS linters"
 	@echo "  typecheck      Run go vet and TypeScript checks"
 	@echo "  ci             Run full CI pipeline"
 	@echo "  deploy         Deploy latest to production (push origin/main first)"
-	@echo "  release-audit  Run privacy/leak scan on tracked files"
+	@echo "  release-audit  Scan privacy, secrets, and full Git history"
 	@echo "  clean          Remove build artifacts"
 
 build-js:
@@ -101,9 +103,9 @@ typecheck:
 	pnpm tsc --noEmit; \
 	pnpm tsc -p tsconfig.illustration.json
 
-ci: fmt-check lint typecheck build-js test release-audit
+ci: fmt-check lint typecheck build-js test test-release-audit release-audit
 
-deploy:
+deploy: release-audit
 	@echo "Deploying to $(DEPLOY_HOST)..."
 	ssh $(DEPLOY_HOST) "sudo systemctl restart duffel"
 	@echo "Done. start.sh will pull origin/main, rebuild, and restart."
@@ -112,6 +114,9 @@ setup:
 	pnpm install
 	for d in node_modules/.pnpm/better-sqlite3@*/node_modules/better-sqlite3; do (cd "$$d" && npm run build-release) || exit 1; done
 
+setup-release-audit:
+	bash ./ops/scripts/install_trufflehog.sh
+
 clean:
 	rm -f duffel
 	rm -rf src/frontend/js/
@@ -119,3 +124,6 @@ clean:
 
 release-audit:
 	bash ./ops/scripts/release_audit.sh
+
+test-release-audit:
+	bash ./tests/security/release_audit_test.sh

@@ -9,10 +9,13 @@ Thanks for helping improve Duffel.
    - Node.js + pnpm
    - `make`
    - `curl`
+   - `jq` (redacted release scanner reports)
+   - `rg` (ripgrep, used by privacy checks)
 2. Install project dependencies:
 
 ```bash
 make setup
+make setup-release-audit
 ```
 
 ## Standard workflow
@@ -31,10 +34,16 @@ make ci
 make release-audit
 ```
 
+The release gate requires TruffleHog and full Git history. It scans committed
+history, staged files, and the current non-ignored source files, fails on secret
+candidates or scanner errors, and reports locations without printing credential
+values. Verification and automatic scanner updates are disabled. Ignored local
+data and configuration are excluded; force-added ignored files are rejected.
+
 5. Add one concise journal entry for the logical change through the MCP connector.
 
 ## Required checks before merge
 
 - `make ci` passes
-- `make release-audit` passes
+- `make release-audit` and `make test-release-audit` pass
 - Relevant tests for the changed behavior exist or are updated

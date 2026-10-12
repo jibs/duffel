@@ -5,6 +5,7 @@ Use this checklist before publishing Duffel as a public repository.
 ## Release readiness
 
 - [ ] `make ci` passes locally
+- [ ] `make setup-release-audit` installed the pinned scanner; `jq` is available
 - [ ] `make release-audit` passes locally
 - [ ] README positioning is accurate and public-safe
 - [ ] `AGENTS.md` is public-safe and aligned with README
@@ -15,6 +16,8 @@ Use this checklist before publishing Duffel as a public repository.
 - [ ] No tracked personal note data or local runtime artifacts
 - [ ] No absolute personal machine paths in tracked files
 - [ ] No personal email addresses or secret material in tracked files
+- [ ] Full Git history, staged content, and current source pass TruffleHog scanning
+- [ ] No ignored secrets/config/data files were force-added to Git
 
 ## Git history identity rewrite (one-time pre-publication)
 

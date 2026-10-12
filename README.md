@@ -65,7 +65,7 @@ Requirements:
 
 Steps:
 1. Clone the repo and enter it.
-2. Run make setup.
+2. Run make setup and make setup-release-audit; install jq and rg for release checks.
 3. Create a few sample Markdown files under ./data if the directory is empty.
 4. Start the app with make dev for development, or follow ops/deploy/DEPLOY.md for systemd deployment.
 5. Open http://localhost:4386.
@@ -260,12 +260,13 @@ Common commands:
 
 ```bash
 make setup          # install dependencies
+make setup-release-audit # install pinned, checksummed TruffleHog
 make dev            # build frontend JS and run the Go server
 make build          # build the backend binary
 make test           # run unit, integration, and e2e tests
 make lint           # run Go and TypeScript linters
 make fmt            # format Go and TypeScript
-make release-audit  # scan tracked files for privacy/secret risks
+make release-audit  # scan privacy, secrets, and full Git history
 make ci             # full local check suite
 ```
 
@@ -296,12 +297,21 @@ network use.
 Tracked source should not include personal note data, generated tokens, `.env`,
 runtime logs, or local machine paths.
 
-Run these before publishing:
+Install the release scanner with `make setup-release-audit` (requires `curl`,
+`tar`, and a SHA-256 utility), and install `jq` and `rg` (ripgrep) for the audit.
+Then run:
 
 ```bash
 make release-audit
-trufflehog filesystem --no-update --only-verified .
 ```
+
+The mandatory release gate scans full Git history, staged content, and current
+non-ignored source files with TruffleHog. It blocks detected secret candidates,
+including unverified credentials, and fails if the scanner is missing, history
+is shallow, or scanning encounters an error. Credential verification and update
+checks are disabled; reports omit credential values. Local data and private
+configuration are ignored, and force-added ignored files are rejected. The same
+gate runs in `make ci` and before `make deploy`.
 
 ## More docs
 
