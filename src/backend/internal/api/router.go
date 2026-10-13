@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 
 	"duffel/pkg/duffellib/search"
@@ -110,9 +111,23 @@ func NewRouterWithRecommendationCache(store *storage.Store, getSearcher func() *
 
 	// Serve frontend static files
 	fileServer := http.FileServer(http.Dir(frontendDir))
-	r.Handle("/*", fileServer)
+	r.Handle("/*", staticCacheMiddleware(fileServer))
 
 	return r
+}
+
+var hashedDrawingAsset = regexp.MustCompile(`^/js/drawing/(chunks|assets)/[a-zA-Z0-9_./-]+-[A-Z0-9]{8}\.[a-zA-Z0-9]+$`)
+
+func staticCacheMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Del("Pragma")
+		w.Header().Del("Expires")
+		w.Header().Set("Cache-Control", "public, max-age=0, must-revalidate")
+		if hashedDrawingAsset.MatchString(r.URL.Path) {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func noCacheMiddleware(next http.Handler) http.Handler {

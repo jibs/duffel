@@ -44,9 +44,14 @@ Agents can attach editable diagrams through the MCP connector:
 - `duffel_diagram_read` reads the attached diagram metadata.
 - `duffel_diagram_delete` removes the attachment.
 
-The first view converts supported Mermaid flowcharts, sequence diagrams, state
-diagrams, and mind maps into native tldraw shapes. Humans can then edit those
-shapes with the normal tldraw tools. Set `DUFFEL_TLDRAW_LICENSE_KEY` for
+Previews convert supported Mermaid flowcharts, sequence diagrams, state
+diagrams, and mind maps without changing the stored document. Opening the editor
+saves the conversion into native tldraw shapes. **Done** and Escape wait for all
+pending saves; a failed save keeps the draft open. Navigating away with unsaved
+changes prompts before leaving. Illustration assets must be embedded raster
+images or workspace image paths; remote images and embeds are rejected.
+The drawing build is minified and split, with Mermaid loaded on demand and
+hashed chunks cached across visits. Set `DUFFEL_TLDRAW_LICENSE_KEY` for
 production HTTPS deployments as required by the tldraw SDK license.
 
 ## Ask an LLM to set it up

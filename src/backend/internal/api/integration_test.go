@@ -39,7 +39,7 @@ func TestResponsesDisableBrowserCaching(t *testing.T) {
 	srv, _ := setupTestServer(t)
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/")
+	resp, err := http.Get(srv.URL + "/api/fs/")
 	if err != nil {
 		t.Fatal(err)
 	}

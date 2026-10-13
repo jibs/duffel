@@ -1,9 +1,11 @@
 package api
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"net/http"
 	"os"
@@ -97,7 +99,7 @@ func readIllustration(store *storage.Store, notePath string) (*illustrationRespo
 	return &illustrationResponse{
 		Path:      canonical,
 		Exists:    true,
-		Revision:  illustrationRevision(file.ModTime, file.Size),
+		Revision:  illustrationRevision(file.Content),
 		UpdatedAt: file.ModTime,
 		Document:  &document,
 	}, nil
@@ -118,19 +120,6 @@ func writeIllustration(store *storage.Store, notePath string, document illustrat
 	if err != nil {
 		return nil, err
 	}
-	if expectedRevision != "" {
-		current, err := store.Read(sidecar)
-		if err != nil && !errors.Is(err, storage.ErrNotFound) {
-			return nil, err
-		}
-		currentRevision := "none"
-		if current != nil {
-			currentRevision = illustrationRevision(current.ModTime, current.Size)
-		}
-		if currentRevision != expectedRevision {
-			return nil, errIllustrationConflict
-		}
-	}
 	content, err := json.Marshal(document)
 	if err != nil {
 		return nil, err
@@ -138,10 +127,26 @@ func writeIllustration(store *storage.Store, notePath string, document illustrat
 	if len(content) > maxIllustrationBytes {
 		return nil, errIllustrationTooLarge
 	}
-	if err := store.Write(sidecar, content); err != nil {
+	written, err := store.WriteConditional(sidecar, content, func(current *storage.FileInfo) error {
+		if expectedRevision == "" {
+			return nil // MCP replaces deliberately; browser saves always send If-Match.
+		}
+		currentRevision := "none"
+		if current != nil {
+			currentRevision = illustrationRevision(current.Content)
+		}
+		if currentRevision != expectedRevision {
+			return errIllustrationConflict
+		}
+		return nil
+	})
+	if err != nil {
 		return nil, err
 	}
-	return readIllustration(store, canonical)
+	return &illustrationResponse{
+		Path: canonical, Exists: true, Revision: illustrationRevision(written.Content),
+		UpdatedAt: written.ModTime, Document: &document,
+	}, nil
 }
 
 func deleteIllustration(store *storage.Store, notePath string) error {
@@ -164,19 +169,18 @@ func validateIllustrationDocument(document *illustrationDocument) error {
 		return errors.New("illustration requires a snapshot or Mermaid source")
 	}
 	if len(document.Snapshot) > 0 {
-		var snapshot any
-		if err := json.Unmarshal(document.Snapshot, &snapshot); err != nil {
-			return errors.New("snapshot must be valid JSON")
+		if err := validateIllustrationSnapshot(document.Snapshot); err != nil {
+			return err
 		}
-		if snapshot == nil {
-			return errors.New("snapshot must not be null")
-		}
+	}
+	if len(document.Mermaid) > 64<<10 {
+		return errors.New("mermaid source exceeds 64 KiB")
 	}
 	return nil
 }
 
-func illustrationRevision(modTime time.Time, size int64) string {
-	return fmt.Sprintf("%d-%d", modTime.UnixNano(), size)
+func illustrationRevision(content string) string {
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(content)))
 }
 
 var (
@@ -198,13 +202,19 @@ func handleIllustration(store *storage.Store, onContentChanged ContentChangeNoti
 		case http.MethodPut:
 			r.Body = http.MaxBytesReader(w, r.Body, maxIllustrationBytes)
 			var document illustrationDocument
-			if err := json.NewDecoder(r.Body).Decode(&document); err != nil {
+			decoder := json.NewDecoder(r.Body)
+			decoder.DisallowUnknownFields()
+			if err := decoder.Decode(&document); err != nil {
 				var maxErr *http.MaxBytesError
 				if errors.As(err, &maxErr) {
 					writeError(w, http.StatusRequestEntityTooLarge, errIllustrationTooLarge.Error(), notePath)
 					return
 				}
 				writeError(w, http.StatusBadRequest, "invalid JSON body", notePath)
+				return
+			}
+			if err := decoder.Decode(new(any)); err != io.EOF {
+				writeError(w, http.StatusBadRequest, "body must contain one JSON document", notePath)
 				return
 			}
 			result, err := writeIllustration(store, notePath, document, strings.TrimSpace(r.Header.Get("If-Match")))

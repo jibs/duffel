@@ -1,4 +1,5 @@
 import { readIllustration } from "./api.js";
+import "./illustration-save.js";
 
 const fileButton = document.getElementById("btn-illustrate")!;
 const journalButton = document.getElementById("btn-journal-illustrate")!;
@@ -81,14 +82,31 @@ function openIllustration(path: string): void {
   frame.src = illustrationURL(path, "edit");
   overlay.append(header, frame);
 
-  const dismiss = (): void => {
-    overlay.remove();
-    void updateIllustrationUI(currentPath, currentTarget);
+  let closing = false;
+  const dismiss = async (): Promise<void> => {
+    if (closing) return;
+    closing = true;
+    close.disabled = true;
+    close.textContent = "Saving…";
+    try {
+      const drawing = frame.contentWindow?.duffelIllustration;
+      if (!drawing) throw new Error("Editor is still loading. Try Done again.");
+      await drawing.flush();
+      window.removeEventListener("keydown", onEscape);
+      overlay.remove();
+      void updateIllustrationUI(currentPath, currentTarget);
+    } catch (error) {
+      label.textContent = `Could not close: ${(error as Error).message}`;
+      close.disabled = false;
+      close.textContent = "Retry save";
+      closing = false;
+    }
   };
-  close.addEventListener("click", dismiss);
-  overlay.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") dismiss();
-  });
+  close.addEventListener("click", () => void dismiss());
+  const onEscape = (event: KeyboardEvent): void => {
+    if (event.key === "Escape") void dismiss();
+  };
+  window.addEventListener("keydown", onEscape);
   document.body.appendChild(overlay);
   close.focus();
 }

@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { createMermaidDiagram } from "@tldraw/mermaid";
 import {
   createTLStore,
   Editor,
@@ -18,16 +17,12 @@ import {
   readIllustrationConfig,
   writeIllustration,
 } from "../ts/api.js";
+import { IllustrationSaveQueue } from "../ts/illustration-save.js";
 
 type LoadState =
   | { status: "loading" }
   | { status: "error"; message: string }
-  | {
-    status: "ready";
-    record: IllustrationResponse;
-    store: TLStore;
-    licenseKey: string;
-  };
+  | { status: "ready"; record: IllustrationResponse; store: TLStore; licenseKey: string };
 
 const params = new URLSearchParams(window.location.search);
 const notePath = params.get("path") || "";
@@ -36,10 +31,14 @@ const preview = params.get("mode") === "preview";
 function IllustrationApp(): React.JSX.Element {
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" });
   const [saveStatus, setSaveStatus] = useState("Loading…");
-  const revision = useRef("");
-  const saving = useRef(false);
-  const saveQueued = useRef(false);
+  const [initializing, setInitializing] = useState(true);
+  const revision = useRef("none");
+  const queue = useRef<IllustrationSaveQueue | null>(null);
+  const initialization = useRef<Promise<void> | null>(null);
+  const timer = useRef<number | undefined>(undefined);
+  const conflict = useRef(false);
   const editorRef = useRef<Editor | null>(null);
+  const savedDocument = useRef("");
 
   useEffect(() => {
     let active = true;
@@ -50,105 +49,144 @@ function IllustrationApp(): React.JSX.Element {
         if (record.document?.snapshot) {
           loadSnapshot(store, record.document.snapshot as TLEditorSnapshot);
         }
-        revision.current = record.revision || "";
+        revision.current = record.revision || "none";
         setLoadState({ status: "ready", record, store, licenseKey: config.licenseKey });
       })
       .catch((error: Error) => {
         if (active) setLoadState({ status: "error", message: error.message });
       });
+    const flush = async (): Promise<void> => {
+      if (preview) return;
+      if (!initialization.current || !queue.current) throw new Error("Editor is still loading");
+      await initialization.current.catch(() => undefined);
+      window.clearTimeout(timer.current);
+      const editor = editorRef.current;
+      editor?.complete();
+      editor?.updateInstanceState({ isReadonly: true });
+      // Store listeners may be delivered on the next animation frame. Inspect
+      // the document itself so an immediate close also includes that last edit.
+      if (editor && JSON.stringify(getSnapshot(editor.store).document) !== savedDocument.current) {
+        queue.current.markDirty();
+      }
+      try {
+        await queue.current.flush();
+      } catch (error) {
+        editorRef.current?.updateInstanceState({ isReadonly: preview });
+        throw error;
+      }
+    };
+    window.duffelIllustration = { flush };
+    const beforeUnload = (event: BeforeUnloadEvent): void => {
+      if (!preview && (queue.current?.dirty || (editorRef.current &&
+        JSON.stringify(getSnapshot(editorRef.current.store).document) !== savedDocument.current))) {
+        event.preventDefault();
+        event.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", beforeUnload);
     return () => {
       active = false;
+      delete window.duffelIllustration;
+      window.removeEventListener("beforeunload", beforeUnload);
     };
   }, []);
 
-  async function persist(): Promise<void> {
-    const editor = editorRef.current;
-    if (!editor) return;
-    if (saving.current) {
-      saveQueued.current = true;
-      return;
-    }
-    saving.current = true;
-    setSaveStatus("Saving…");
-    try {
-      const result = await writeIllustration(notePath, {
-        version: 1,
-        snapshot: getSnapshot(editor.store),
-      }, revision.current);
-      revision.current = result.revision || "";
-      setSaveStatus("Saved");
-    } catch (error) {
-      setSaveStatus((error as Error).message.includes("changed since")
-        ? "Changed elsewhere — close and reopen"
-        : `Save failed: ${(error as Error).message}`);
-    } finally {
-      saving.current = false;
-      if (saveQueued.current) {
-        saveQueued.current = false;
-        void persist();
-      }
-    }
-  }
-
-  async function handleMount(editor: Editor, record: IllustrationResponse): Promise<() => void> {
+  function handleMount(editor: Editor, record: IllustrationResponse): () => void {
+    let active = true;
+    let initialized = false;
     editorRef.current = editor;
-
-    if (!record.document?.snapshot && record.document?.mermaid) {
-      setSaveStatus("Building Mermaid diagram…");
+    savedDocument.current = JSON.stringify(getSnapshot(editor.store).document);
+    queue.current = new IllustrationSaveQueue(async () => {
+      if (preview) throw new Error("Previews are read-only");
+      if (conflict.current) throw new Error("Changed elsewhere. Keep this draft open and copy it before reloading.");
+      setSaveStatus("Saving…");
       try {
-        await createMermaidDiagram(editor, record.document.mermaid);
-        editor.selectNone();
-        editor.zoomToFit({ immediate: true });
-        await persist();
+        // Only document state is shared; viewport/selection belongs to this session.
+        const document = getSnapshot(editor.store).document;
+        const fingerprint = JSON.stringify(document);
+        const result = await writeIllustration(notePath, {
+          version: 1,
+          snapshot: { document },
+        }, revision.current);
+        revision.current = result.revision || "none";
+        savedDocument.current = fingerprint;
+        if (active) setSaveStatus("Saved");
       } catch (error) {
-        setSaveStatus(`Mermaid error: ${(error as Error).message}`);
+        conflict.current = (error as Error).message.includes("changed since");
+        if (active) setSaveStatus(`Save failed: ${(error as Error).message}`);
+        throw error;
       }
-    } else {
-      editor.zoomToFit({ immediate: true });
-      setSaveStatus(record.exists ? "Saved" : "Start drawing");
-    }
-
-    if (preview) {
+    });
+    initialization.current = (async () => {
+      if (!record.document?.snapshot && record.document?.mermaid) {
+        setSaveStatus("Building Mermaid diagram…");
+        const { createMermaidDiagram } = await import("@tldraw/mermaid");
+        if (!active) return;
+        await createMermaidDiagram(editor, record.document.mermaid);
+        if (!active) return;
+        if (!preview) {
+          queue.current!.markDirty();
+          await queue.current!.flush();
+        }
+      }
+      if (!active) return;
       editor.selectNone();
-      editor.updateInstanceState({ isReadonly: true });
-    }
+      editor.zoomToFit({ immediate: true });
+      editor.updateInstanceState({ isReadonly: preview });
+      setSaveStatus(record.exists ? "Saved" : "Start drawing");
+      initialized = true;
+      setInitializing(false);
+    })();
+    // Wait for conversion before collecting the draft; failed saves remain dirty.
+    void initialization.current.catch((error: Error) => {
+      if (active) {
+        setSaveStatus(`Diagram error: ${error.message}`);
+        editor.updateInstanceState({ isReadonly: preview });
+        initialized = true;
+        setInitializing(false);
+      }
+    });
 
-    let timer: number | undefined;
-    const stop = preview
-      ? () => undefined
-      : editor.store.listen(() => {
-        window.clearTimeout(timer);
-        timer = window.setTimeout(() => void persist(), 650);
-      }, { source: "user", scope: "document" });
-
+    const stop = preview ? () => undefined : editor.store.listen(() => {
+      if (!initialized) return;
+      queue.current!.markDirty();
+      setSaveStatus("Unsaved changes");
+      window.clearTimeout(timer.current);
+      timer.current = window.setTimeout(() => {
+        void queue.current!.flush().catch(() => undefined);
+      }, 650);
+    }, { source: "user", scope: "document" });
+    const escape = (event: KeyboardEvent): void => {
+      if (event.key === "Escape" && window.parent !== window) {
+        window.parent.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      }
+    };
+    window.addEventListener("keydown", escape);
     return () => {
-      window.clearTimeout(timer);
+      active = false;
+      window.clearTimeout(timer.current);
       stop();
       editorRef.current = null;
+      window.removeEventListener("keydown", escape);
     };
   }
 
-  if (!notePath) {
-    return <div className="drawing-message">Missing note path.</div>;
-  }
-  if (loadState.status === "loading") {
-    return <div className="drawing-message">Loading illustration…</div>;
-  }
+  if (!notePath) return <div className="drawing-message">Missing note path.</div>;
+  if (loadState.status === "loading") return <div className="drawing-message">Loading illustration…</div>;
   if (loadState.status === "error") {
     return <div className="drawing-message drawing-error">{loadState.message}</div>;
   }
-
   return (
-    <div className={`drawing-root ${preview ? "drawing-preview" : ""}`}>
+    <div className={`drawing-root ${preview ? "drawing-preview" : ""} ${initializing ? "drawing-loading" : ""}`}>
       <Tldraw
         store={loadState.store}
-        hideUi={preview}
+        hideUi={preview || initializing}
         licenseKey={loadState.licenseKey || undefined}
-        onMount={(editor) => {
-          void handleMount(editor, loadState.record);
-        }}
+        onMount={(editor) => handleMount(editor, loadState.record)}
       />
       {!preview && <div className="drawing-save-status" role="status">{saveStatus}</div>}
+      {preview && saveStatus.startsWith("Diagram error:") &&
+        <div className="drawing-save-status drawing-error" role="alert">{saveStatus}</div>}
     </div>
   );
 }

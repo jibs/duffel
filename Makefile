@@ -38,7 +38,7 @@ help:
 
 build-js:
 	pnpm tsc
-	pnpm exec esbuild src/frontend/drawing/illustration.tsx --bundle --format=esm --outfile=src/frontend/js/illustration.js --loader:.woff=file --loader:.woff2=file --loader:.svg=file --asset-names=../assets/[name]-[hash] --define:process.env.NODE_ENV='"production"'
+	node ops/scripts/build_illustration.mjs
 
 dev: build-js
 	go run ./src/backend/cmd/server
@@ -65,8 +65,9 @@ test-integration:
 	fi; \
 	go test $$pkgs
 
-test-e2e:
+test-e2e: build-js
 	go test ./tests/e2e/...
+	node --test tests/frontend/*.test.mjs
 
 test-live:
 	if [ "$${LIVE_TESTS:-}" != "1" ] || [ "$${LIVE_TESTS_CONFIRM:-}" != "YES" ]; then \

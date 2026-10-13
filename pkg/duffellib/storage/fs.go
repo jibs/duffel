@@ -3,6 +3,7 @@ package storage
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -175,23 +176,28 @@ func (s *Store) Read(urlPath string) (*FileInfo, error) {
 		return nil, err
 	}
 
-	info, err := os.Stat(fsPath)
+	f, err := os.Open(fsPath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
+	defer func() { _ = f.Close() }()
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
 	if info.IsDir() {
 		return nil, ErrIsDirectory
 	}
 
-	content, err := os.ReadFile(fsPath)
+	content, err := io.ReadAll(f)
 	if err != nil {
 		return nil, err
 	}
 
-	isJournal := isJournalFile(fsPath)
+	isJournal := strings.HasPrefix(string(content), "---\ntype: journal\n---")
 	return &FileInfo{
 		Path:      urlPath,
 		Content:   string(content),
@@ -334,18 +340,89 @@ func (s *Store) writeFile(urlPath string, content []byte) error {
 	if err != nil {
 		return err
 	}
+	return s.withPathLock("write", fsPath, func() error {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if fileExists(fsPath) && isJournalFile(fsPath) {
+			return ErrIsJournal
+		}
+		if err := os.MkdirAll(filepath.Dir(fsPath), 0o755); err != nil {
+			return err
+		}
+		return os.WriteFile(fsPath, content, 0o644)
+	})
+}
 
-	// Check if this is a journal file — must use journal endpoints
-	if fileExists(fsPath) && isJournalFile(fsPath) {
-		return ErrIsJournal
+// WriteConditional checks the current file and replaces it under one path lock.
+// The returned metadata belongs to this write, even if a later writer wins.
+// check must not call other mutating Store methods.
+func (s *Store) WriteConditional(urlPath string, content []byte, check func(*FileInfo) error) (*FileInfo, error) {
+	if strings.HasPrefix(string(content), "---\ntype: journal\n---") {
+		return nil, ErrIsJournal
 	}
+	if err := markdown.Validate(content); err != nil {
+		return nil, err
+	}
+	return s.writeConditional(urlPath, content, check)
+}
 
-	// Ensure parent directory exists
-	if err := os.MkdirAll(filepath.Dir(fsPath), 0o755); err != nil {
+func (s *Store) writeConditional(urlPath string, content []byte, check func(*FileInfo) error) (*FileInfo, error) {
+	fsPath, err := s.SafePath(urlPath)
+	if err != nil {
+		return nil, err
+	}
+	var written *FileInfo
+	err = s.withPathLock("write", fsPath, func() error {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		current, err := s.Read(urlPath)
+		if err != nil && !errors.Is(err, ErrNotFound) {
+			return err
+		}
+		if current != nil && current.IsJournal {
+			return ErrIsJournal
+		}
+		if check != nil {
+			if err := check(current); err != nil {
+				return err
+			}
+		}
+		if err := os.MkdirAll(filepath.Dir(fsPath), 0o755); err != nil {
+			return err
+		}
+		f, err := os.CreateTemp(filepath.Dir(fsPath), ".duffel-write-*")
+		if err != nil {
+			return err
+		}
+		defer func() { _ = os.Remove(f.Name()) }()
+		defer func() { _ = f.Close() }()
+		mode := fs.FileMode(0o644)
+		if current != nil {
+			info, err := os.Stat(fsPath)
+			if err != nil {
+				return err
+			}
+			mode = info.Mode().Perm()
+		}
+		if err := f.Chmod(mode); err != nil {
+			return err
+		}
+		if _, err := f.Write(content); err != nil {
+			return err
+		}
+		if err := f.Sync(); err != nil {
+			return err
+		}
+		if err := f.Close(); err != nil {
+			return err
+		}
+		if err := os.Rename(f.Name(), fsPath); err != nil {
+			return err
+		}
+		written, err = s.Read(urlPath)
 		return err
-	}
-
-	return os.WriteFile(fsPath, content, 0o644)
+	})
+	return written, err
 }
 
 func (s *Store) Delete(urlPath string) error {

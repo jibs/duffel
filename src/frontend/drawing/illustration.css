@@ -44,6 +44,7 @@ body,
   color: #b91c1c;
 }
 
-.drawing-preview .tl-container {
+.drawing-preview .tl-container,
+.drawing-loading .tl-container {
   pointer-events: none;
 }
