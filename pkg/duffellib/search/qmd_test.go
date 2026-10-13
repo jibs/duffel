@@ -401,9 +401,9 @@ func TestRepairQmdCollectionNameRenamesStaleCollection(t *testing.T) {
 }
 
 func TestEnsureQmdConfigCollectionRepairsLegacyListConfig(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	configPath := filepath.Join(home, ".config", "qmd", "index.yml")
+	configDir := t.TempDir()
+	t.Setenv("QMD_CONFIG_DIR", configDir)
+	configPath := filepath.Join(configDir, "index.yml")
 	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
 		t.Fatalf("mkdir config dir: %v", err)
 	}
@@ -426,9 +426,9 @@ func TestEnsureQmdConfigCollectionRepairsLegacyListConfig(t *testing.T) {
 }
 
 func TestEnsureQmdConfigCollectionUpdatesExistingMask(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	configPath := filepath.Join(home, ".config", "qmd", "index.yml")
+	configDir := t.TempDir()
+	t.Setenv("QMD_CONFIG_DIR", configDir)
+	configPath := filepath.Join(configDir, "index.yml")
 	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
 		t.Fatalf("mkdir config dir: %v", err)
 	}
