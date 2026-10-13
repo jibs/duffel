@@ -21,11 +21,19 @@ const result = await build({
   logLevel: "info",
 });
 
-// Fail CI if a transitive dependency reintroduces either reviewed advisory.
+// Fail CI if a transitive dependency reintroduces a reviewed browser advisory.
 const inputs = Object.keys(result.metafile.inputs);
-for (const [name, version] of [["prosemirror-view", "1.42.3"], ["mermaid", "11.16.1"]]) {
+for (const [name, version] of [
+  ["prosemirror-view", "1.42.3"],
+  ["mermaid", "11.16.1"],
+  ["@tiptap/core", "3.30.5"],
+  ["dompurify", "3.4.16"],
+  ["katex", "0.18.2"],
+]) {
   const packages = inputs.filter((input) => input.includes(`/node_modules/${name}/`));
-  if (!packages.length || packages.some((input) => !input.includes(`/${name}@${version}/`))) {
+  const installed = `/${name.replace("/", "+")}@${version}`;
+  if (!packages.length || packages.some((input) =>
+    !input.includes(`${installed}/`) && !input.includes(`${installed}_`))) {
     throw new Error(`Drawing bundle must use patched ${name}@${version}`);
   }
 }
