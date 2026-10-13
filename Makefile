@@ -4,7 +4,7 @@ SHELL := /usr/bin/env bash
 
 DEPLOY_HOST ?= deploy@example-host
 GOLANGCI_LINT ?= $(CURDIR)/.tools/bin/golangci-lint
-GOLANGCI_LINT_CACHE ?= /private/tmp/duffel-golangci-lint-cache
+GOLANGCI_LINT_CACHE ?= $(CURDIR)/.cache/golangci-lint
 
 ifneq (,$(wildcard .env))
 include .env
@@ -91,8 +91,8 @@ lint: lint-go lint-js
 
 lint-go:
 	@command -v "$(GOLANGCI_LINT)" >/dev/null 2>&1 || { echo "golangci-lint is required; run make setup-lint" >&2; exit 1; }
-	GOLANGCI_LINT_CACHE=$(GOLANGCI_LINT_CACHE) "$(GOLANGCI_LINT)" config verify
-	GOLANGCI_LINT_CACHE=$(GOLANGCI_LINT_CACHE) "$(GOLANGCI_LINT)" run ./pkg/... ./src/backend/...
+	GOLANGCI_LINT_CACHE="$(GOLANGCI_LINT_CACHE)" "$(GOLANGCI_LINT)" config verify
+	GOLANGCI_LINT_CACHE="$(GOLANGCI_LINT_CACHE)" "$(GOLANGCI_LINT)" run ./pkg/... ./src/backend/...
 
 lint-js:
 	node node_modules/eslint/bin/eslint.js src/frontend/ts/ src/frontend/drawing/
